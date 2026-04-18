@@ -1,0 +1,27 @@
+# Tasks
+- [x] Task 1: 初始化 React Native 项目及基础环境
+  - [x] SubTask 1.1: 创建支持 TypeScript 的 Expo (React Native) 项目。
+  - [x] SubTask 1.2: 安装并配置 NativeWind (支持 Tailwind CSS v4/v3)。
+  - [x] SubTask 1.3: 搭建类似 Shadcn 的基础组件目录结构 (如 Button, Input, Card 等原子组件)。
+- [x] Task 2: 实现数据层与全局状态管理
+  - [x] SubTask 2.1: 集成 AsyncStorage 或 MMKV，搭建本地数据持久化模块。
+  - [x] SubTask 2.2: 使用 Zustand 或 React Context 构建全局状态（管理 Accounts, Vocab, Settings, History）。
+  - [x] SubTask 2.3: 定义与 Python 脚本对应的数据模型接口（树状词库、账户统计、历史流水）。
+- [x] Task 3: 构建核心 UI 组件与毛玻璃美学
+  - [x] SubTask 3.1: 实现全局深色渐变背景 (`#0f172a` 到 `#2e1022`)。
+  - [x] SubTask 3.2: 封装 GlassCard 毛玻璃卡片组件 (包含 backdrop-blur, 半透明背景和边框)。
+  - [x] SubTask 3.3: 封装带有交互动画（如错误震动反馈 `shake-anim`、焦点高亮）的定制化 Input 和 Button 组件。
+- [x] Task 4: 实现身份验证与安全机制
+  - [x] SubTask 4.1: 开发 Admin/Guest 密码输入界面。
+  - [x] SubTask 4.2: 在状态管理中实现基于角色 (Admin/Guest) 的权限访问控制 (RBAC)。
+- [x] Task 5: 词库与目录管理模块
+  - [x] SubTask 5.1: 构建词库树状视图（支持文件夹和单词集展示）。
+  - [x] SubTask 5.2: 实现对词库和单词的 CRUD（增删改查）及排序逻辑。
+- [x] Task 6: 核心听写测试引擎
+  - [x] SubTask 6.1: 开发测试配置面板（设置倒计时模式、提示、账户选择）。
+  - [x] SubTask 6.2: 构建听写测试进行中的核心界面（展示进度、倒计时、输入框）。
+  - [x] SubTask 6.3: 接入 `expo-speech`，实现本地化 TTS 语音朗读。
+  - [x] SubTask 6.4: 实现作答校验、动态掩码提示、跳题以及耗时/错误次数的追踪逻辑。
+- [x] Task 7: 智能错题本与历史流水
+  - [x] SubTask 7.1: 开发测试结算页，并记录详细测试历史到账户流水。
+  - [x] SubTask 7.2: 开发“错题本”视图，实现按错误次数筛选并生成“错题重练”试卷。
