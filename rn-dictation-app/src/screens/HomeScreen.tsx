@@ -36,6 +36,13 @@ export function HomeScreen({ navigation }: Props) {
             onPress={() => navigation.navigate('MistakeBook')}
           />
         </View>
+        <View className="flex-row mt-2">
+          <Button 
+            title="关于与日志" 
+            onPress={() => navigation.navigate('About')} 
+            className="flex-1 bg-teal-600 active:bg-teal-700" 
+          />
+        </View>
 
         <VocabManager />
 

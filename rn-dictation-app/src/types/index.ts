@@ -8,4 +8,5 @@ export type RootStackParamList = {
   PostTestSummary: undefined;
   HistoryList: undefined;
   MistakeBook: undefined;
+  About: undefined;
 };

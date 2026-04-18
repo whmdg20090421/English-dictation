@@ -26,8 +26,9 @@ export function RootNavigator() {
             <Stack.Screen name="TestConfig" component={TestConfigScreen} />
             <Stack.Screen name="ActiveTest" component={ActiveTestScreen} />
             <Stack.Screen name="PostTestSummary" component={PostTestSummaryScreen} />
-            <Stack.Screen name="HistoryList" component={HistoryListScreen} />
-            <Stack.Screen name="MistakeBook" component={MistakeBookScreen} />
+            <Stack.Screen name="HistoryList" component={HistoryListScreen} options={{ title: '历史记录' }} />
+            <Stack.Screen name="MistakeBook" component={MistakeBookScreen} options={{ title: '智能错题本' }} />
+            <Stack.Screen name="About" component={AboutScreen} options={{ title: '关于' }} />
           </>
         ) : (
           // Auth screens

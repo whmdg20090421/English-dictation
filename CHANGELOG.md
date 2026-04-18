@@ -1,0 +1,1 @@
+rn-dictation-app/assets/CHANGELOG.md

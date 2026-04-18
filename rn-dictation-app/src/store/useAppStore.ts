@@ -240,7 +240,7 @@ export const useAppStore = create<AppState>()(
       },
     }),
     {
-      name: 'dictation-app-storage',
+      name: '应用配置/全局数据',
       storage: createJSONStorage(() => AsyncStorage),
     }
   )
