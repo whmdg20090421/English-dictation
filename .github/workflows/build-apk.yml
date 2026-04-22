@@ -1,0 +1,45 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install dependencies
+        working-directory: ./english-dictation
+        run: npm install
+
+      - name: Expo prebuild
+        working-directory: ./english-dictation
+        run: npx expo prebuild -p android --clean
+
+      - name: Build APK
+        working-directory: ./english-dictation/android
+        run: ./gradlew assembleRelease
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: english-dictation/android/app/build/outputs/apk/release/app-release.apk
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
