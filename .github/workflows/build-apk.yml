@@ -51,7 +51,7 @@ jobs:
 
       - name: Rename APK
         working-directory: ./english_dictation_flutter
-        run: mv build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/English_mczj_${{ github.ref_name }}.apk"
+        run: mv build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/英语听写·艨艟战舰.apk"
 
       - name: Create Release
         env:
@@ -60,4 +60,4 @@ jobs:
           # Try to create the release if it doesn't exist
           gh release create ${{ github.ref_name }} --title "${{ github.ref_name }}" --notes "Release ${{ github.ref_name }}" || echo "Release already exists"
           # Upload the APK explicitly
-          gh release upload ${{ github.ref_name }} "english_dictation_flutter/build/app/outputs/flutter-apk/English_mczj_${{ github.ref_name }}.apk" --clobber
+          gh release upload ${{ github.ref_name }} "english_dictation_flutter/build/app/outputs/flutter-apk/英语听写·艨艟战舰.apk" --clobber
