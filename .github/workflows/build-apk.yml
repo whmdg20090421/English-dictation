@@ -22,7 +22,11 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.24.0'
           channel: 'stable'
+
+      - name: Git Config Safe Directory
+        run: git config --global --add safe.directory '*'
 
       - name: Install dependencies
         working-directory: ./english_dictation_flutter
