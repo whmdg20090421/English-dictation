@@ -329,9 +329,18 @@ class _ImportExportTab extends StatelessWidget {
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
-                  onPressed: null, // () {},
+                  onPressed: () async {
+                    // Download all data logic
+                    ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+                      const SnackBar(content: Text('开始下载全部数据并解密保存...'), backgroundColor: Colors.blue)
+                    );
+                    await DataManager.instance.downloadAllUsersData();
+                    ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+                      const SnackBar(content: Text('所有数据已成功下载并解密保存至本地!'), backgroundColor: Colors.green)
+                    );
+                  },
                   icon: const Icon(Icons.download),
-                  label: const Text('下载完整备份 (未实现)'),
+                  label: const Text('下载完整备份'),
                 ),
               ),
               const SizedBox(width: 8),

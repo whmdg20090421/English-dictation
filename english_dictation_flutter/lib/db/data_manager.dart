@@ -174,6 +174,40 @@ class DataManager {
     }
   }
 
+  Future<void> downloadAllUsersData() async {
+    final publicData = await CloudSyncService().downloadPublicData();
+    if (publicData != null) {
+      vocab = publicData['vocab'] ?? {};
+      globalSettings = publicData['global_settings'] ?? {};
+    }
+
+    final allFolders = await CloudSyncService().listFiles('/英语听写');
+    for (var folder in allFolders) {
+      if (folder.isDir == true) {
+        String folderName = folder.name ?? '';
+        // Skip public folder and root itself
+        if (folderName == '公共数据' || folderName == '英语听写' || folderName.isEmpty) continue;
+        
+        final personalData = await CloudSyncService().downloadPersonalData(folderName);
+        if (personalData != null && personalData['account'] != null) {
+          String? foundId;
+          for (var entry in accounts.entries) {
+            if (entry.value['name'] == folderName) {
+              foundId = entry.key;
+              break;
+            }
+          }
+          foundId ??= DateTime.now().millisecondsSinceEpoch.toString() + folderName.hashCode.toString();
+          
+          accounts[foundId] = personalData['account'];
+        }
+      }
+    }
+    
+    await _saveToLocalDB();
+    rebuildPosCache();
+  }
+
   void updateWordStats(String accId, String wordText, bool isCorrect, [double timeSpent = 0]) {
     final acc = getAcc(accId);
     acc['stats'] ??= {};
