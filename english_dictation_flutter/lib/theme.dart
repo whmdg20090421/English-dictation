@@ -6,6 +6,9 @@ class AppTheme {
   static const Color primaryBlue = Color(0xFF0A192F);
   static const Color secondaryBlue = Color(0xFF112240);
   static const Color accentCyan = Color(0xFF64FFDA);
+  static const Color primaryDark = primaryBlue;
+  static const Color accentGreen = accentCyan;
+  static const Color glassBorder = Color(0x1AFFFFFF);
   
   static ThemeData get darkTheme {
     return ThemeData(

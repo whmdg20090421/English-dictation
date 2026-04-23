@@ -19,6 +19,7 @@ class DictationProvider extends ChangeNotifier {
 
   String testMode = "混合模式";
   bool isSubmitting = false;
+  bool resultSaved = false;
 
   int accountId = 0;
 
@@ -32,6 +33,7 @@ class DictationProvider extends ChangeNotifier {
     totLeft = totalTime;
     qTimeLeft = perQTime;
     isSubmitting = false;
+    resultSaved = false;
     notifyListeners();
   }
 
