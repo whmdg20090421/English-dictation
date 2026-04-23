@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import '../sync/cloud_sync_service.dart';
 
 class DataManager {
   static final DataManager instance = DataManager._init();
@@ -35,6 +36,19 @@ class DataManager {
   }
 
   Future<void> loadData() async {
+    // Attempt to download from cloud first if password is set
+    final cloudData = await CloudSyncService().downloadData();
+    if (cloudData != null) {
+      vocab = cloudData['vocab'] ?? {};
+      accounts = cloudData['accounts'] ?? {};
+      globalSettings = cloudData['global_settings'] ?? {};
+      
+      // Save cloud data to local DB to keep it in sync
+      await _saveToLocalDB();
+      rebuildPosCache();
+      return;
+    }
+
     final db = await instance.database;
     final List<Map<String, dynamic>> maps = await db.query('Store');
     
@@ -90,13 +104,24 @@ class DataManager {
     }
   }
 
-  Future<void> saveData() async {
-    rebuildPosCache();
+  Future<void> _saveToLocalDB() async {
     final db = await instance.database;
     await db.transaction((txn) async {
       await txn.insert('Store', {'key': 'vocab', 'value': jsonEncode(vocab)}, conflictAlgorithm: ConflictAlgorithm.replace);
       await txn.insert('Store', {'key': 'accounts', 'value': jsonEncode(accounts)}, conflictAlgorithm: ConflictAlgorithm.replace);
       await txn.insert('Store', {'key': 'global_settings', 'value': jsonEncode(globalSettings)}, conflictAlgorithm: ConflictAlgorithm.replace);
+    });
+  }
+
+  Future<void> saveData() async {
+    rebuildPosCache();
+    await _saveToLocalDB();
+    
+    // Upload to cloud as single source of truth
+    await CloudSyncService().uploadData({
+      'vocab': vocab,
+      'accounts': accounts,
+      'global_settings': globalSettings,
     });
   }
 
