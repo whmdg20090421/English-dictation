@@ -4,6 +4,8 @@ import '../sync/cloud_sync_service.dart';
 import '../db/data_manager.dart';
 import 'home_screen.dart';
 
+import '../components/cloud_status_indicator.dart';
+
 class CloudSetupScreen extends StatefulWidget {
   const CloudSetupScreen({super.key});
 
@@ -67,6 +69,7 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('云端初始化配置'),
+        leading: const CloudStatusIndicator(),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

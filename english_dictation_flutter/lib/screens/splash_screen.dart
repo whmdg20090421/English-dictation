@@ -22,27 +22,89 @@ class _SplashScreenState extends State<SplashScreen> {
     // Optional: wait a moment for better UX
     await Future.delayed(const Duration(milliseconds: 500));
     
-    final exists = await CloudSyncService().checkConfigExists();
+    final prefs = await SharedPreferences.getInstance();
+    final hasConnectedBefore = prefs.getBool('has_connected_before') ?? false;
+
+    bool isConnected = false;
+    try {
+      isConnected = await CloudSyncService().ping();
+    } catch (e) {
+      isConnected = false;
+    }
     
     if (!mounted) return;
-    
-    if (exists) {
-      final prefs = await SharedPreferences.getInstance();
-      final pwd = prefs.getString('encryption_password');
-      if (pwd != null && pwd.isNotEmpty) {
-        CloudSyncService().setEncryptionPassword(pwd);
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
+
+    if (isConnected) {
+      await prefs.setBool('has_connected_before', true);
+      final exists = await CloudSyncService().checkConfigExists();
+      if (!mounted) return;
+      
+      if (exists) {
+        final pwd = prefs.getString('encryption_password');
+        if (pwd != null && pwd.isNotEmpty) {
+          CloudSyncService().setEncryptionPassword(pwd);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        } else {
+          // Prompt for password
+          _promptForPassword();
+        }
       } else {
-        // Prompt for password
-        _promptForPassword();
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const CloudSetupScreen()),
+        );
       }
     } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const CloudSetupScreen()),
-      );
+      if (hasConnectedBefore) {
+        final pwd = prefs.getString('encryption_password');
+        if (pwd != null && pwd.isNotEmpty) {
+          CloudSyncService().setEncryptionPassword(pwd);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        } else {
+          _promptForPassword();
+        }
+      } else {
+        _showConnectionError();
+      }
     }
+  }
+
+  void _showConnectionError() {
+    final logs = CloudSyncService().errorLogs;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('网盘连接失败'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('首次运行需要连接网盘进行初始化，但当前连接失败。\n请检查网络连接或WebDAV配置。'),
+              const SizedBox(height: 10),
+              if (logs.isNotEmpty)
+                Text(
+                  '最新报错: ${logs.first}',
+                  style: const TextStyle(fontSize: 12, color: Colors.red),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _checkConfig(); // Retry
+              },
+              child: const Text('重试'),
+            ),
+          ],
+        );
+      }
+    );
   }
 
   void _promptForPassword() {

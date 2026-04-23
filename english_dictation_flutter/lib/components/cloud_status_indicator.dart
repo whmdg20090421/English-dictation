@@ -37,6 +37,11 @@ class _CloudStatusIndicatorState extends State<CloudStatusIndicator> {
   }
 
   void _showMenu(BuildContext context) {
+    if (!_isConnected) {
+      _showErrorLogs(context);
+      return;
+    }
+
     final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
     final isAdmin = currentAcc['role'] == 'admin';
 
@@ -97,6 +102,42 @@ class _CloudStatusIndicatorState extends State<CloudStatusIndicator> {
                 ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  void _showErrorLogs(BuildContext context) {
+    final logs = CloudSyncService().errorLogs;
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('网盘连接报错信息'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: logs.isEmpty
+                ? const Text('暂无详细报错信息')
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: logs.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Text(
+                          logs[index],
+                          style: const TextStyle(fontSize: 12, color: Colors.redAccent),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('关闭'),
+            ),
+          ],
         );
       },
     );

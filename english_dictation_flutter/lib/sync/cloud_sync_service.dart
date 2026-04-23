@@ -28,6 +28,17 @@ class CloudSyncService {
   bool _isConnected = false;
   bool get isConnected => _isConnected;
 
+  final List<String> _errorLogs = [];
+  List<String> get errorLogs => _errorLogs;
+
+  void _logError(String msg) {
+    final time = DateTime.now().toLocal().toString().split('.')[0];
+    _errorLogs.insert(0, '[$time] $msg');
+    if (_errorLogs.length > 50) _errorLogs.removeLast();
+    _isConnected = false;
+    _connectionStatusController.add(false);
+  }
+
   void init() {
     if (!_isInitialized) {
       _client = webdav.newClient(
@@ -45,10 +56,10 @@ class CloudSyncService {
     try {
       await _client.ping();
       _isConnected = true;
+      _connectionStatusController.add(_isConnected);
     } catch (e) {
-      _isConnected = false;
+      _logError('Ping error: $e');
     }
-    _connectionStatusController.add(_isConnected);
   }
 
   Future<bool> ping() async {
@@ -108,7 +119,7 @@ class CloudSyncService {
       final decrypted = encrypter.decrypt(encrypted, iv: iv);
       return jsonDecode(decrypted) as Map<String, dynamic>;
     } catch (e) {
-      print('Decryption failed: \$e');
+      _logError('Decryption failed: $e');
       return null;
     }
   }
@@ -117,9 +128,8 @@ class CloudSyncService {
   Future<bool> checkConfigExists() async {
     init();
     try {
-      // We can try to get the file info or read it
-      await _client.readDir(_publicDataFolder);
-      final files = await _client.readDir(_publicDataFolder);
+      final dirPath = _publicDataFolder.endsWith('/') ? _publicDataFolder : '$_publicDataFolder/';
+      final files = await _client.readDir(dirPath);
       for (var file in files) {
         if (file.path == _configPath || file.name == '配置.json') {
           return true;
@@ -127,7 +137,8 @@ class CloudSyncService {
       }
       return false;
     } catch (e) {
-      print('Check config exists error: \$e');
+      // It's normal for readDir to throw if the folder doesn't exist yet
+      print('Check config exists error (expected if new): $e');
       return false;
     }
   }
@@ -140,7 +151,7 @@ class CloudSyncService {
       final base64String = utf8.decode(bytes);
       return decryptData(base64String, password);
     } catch (e) {
-      print('Download config error: \$e');
+      _logError('Download config error: $e');
       return null;
     }
   }
@@ -149,13 +160,7 @@ class CloudSyncService {
   Future<bool> uploadConfig(Map<String, dynamic> data, String password) async {
     init();
     try {
-      // Ensure directory exists
-      try {
-        await _client.mkdir('/英语听写');
-      } catch (_) {}
-      try {
-        await _client.mkdir(_publicDataFolder);
-      } catch (_) {}
+      await _ensureDir(_publicDataFolder);
 
       final encryptedBase64 = encryptData(data, password);
       final bytes = Uint8List.fromList(utf8.encode(encryptedBase64));
@@ -163,7 +168,7 @@ class CloudSyncService {
       await _client.write(_configPath, bytes);
       return true;
     } catch (e) {
-      print('Upload config error: \$e');
+      _logError('Upload config error: $e');
       return false;
     }
   }
@@ -185,8 +190,10 @@ class CloudSyncService {
     for (var part in parts) {
       current += '/$part';
       try {
-        await _client.mkdir(current);
-      } catch (_) {}
+        await _client.mkdir('$current/');
+      } catch (e) {
+        print('mkdir $current/ error (expected if exists): $e');
+      }
     }
   }
 
@@ -208,7 +215,7 @@ class CloudSyncService {
       final base64String = utf8.decode(bytes);
       return decryptData(base64String, _encryptionPassword!);
     } catch (e) {
-      print('Download data error from $path: \$e');
+      _logError('Download data error from $path: $e');
       return null;
     }
   }
@@ -235,7 +242,7 @@ class CloudSyncService {
       await _client.write(filePath, bytes);
       return true;
     } catch (e) {
-      print('Upload data error to $filePath: $e');
+      _logError('Upload data error to $filePath: $e');
       return false;
     }
   }
@@ -246,7 +253,7 @@ class CloudSyncService {
     try {
       return await _client.readDir(path);
     } catch (e) {
-      print('List files error: $e');
+      _logError('List files error: $e');
       return [];
     }
   }
@@ -257,7 +264,7 @@ class CloudSyncService {
       await _client.mkdir(path);
       return true;
     } catch (e) {
-      print('Create folder error: $e');
+      _logError('Create folder error: $e');
       return false;
     }
   }
@@ -268,7 +275,7 @@ class CloudSyncService {
       await _client.removeAll(path);
       return true;
     } catch (e) {
-      print('Delete file error: $e');
+      _logError('Delete file error: $e');
       return false;
     }
   }
@@ -279,7 +286,7 @@ class CloudSyncService {
       await _client.rename(fromPath, toPath, false); // false for overwrite? WebDAV typically uses rename or move.
       return true;
     } catch (e) {
-      print('Move file error: $e');
+      _logError('Move file error: $e');
       return false;
     }
   }
@@ -290,7 +297,7 @@ class CloudSyncService {
       await _client.copy(fromPath, toPath, false);
       return true;
     } catch (e) {
-      print('Copy file error: $e');
+      _logError('Copy file error: $e');
       return false;
     }
   }
@@ -301,7 +308,7 @@ class CloudSyncService {
       final bytes = await _client.read(path);
       return utf8.decode(bytes);
     } catch (e) {
-      print('Read file error: $e');
+      _logError('Read file error: $e');
       return null;
     }
   }
@@ -313,7 +320,7 @@ class CloudSyncService {
       await _client.write(path, bytes);
       return true;
     } catch (e) {
-      print('Write file error: $e');
+      _logError('Write file error: $e');
       return false;
     }
   }
