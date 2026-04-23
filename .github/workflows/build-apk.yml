@@ -35,10 +35,14 @@ jobs:
         working-directory: ./english_dictation_flutter
         run: flutter build apk --release --dart-define=ENCRYPTION_KEY=${{ secrets.KEY_PASSWORD }}
 
+      - name: Rename APK
+        working-directory: ./english_dictation_flutter
+        run: mv build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/英语听写·艨艟战舰.apk"
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: english_dictation_flutter/build/app/outputs/flutter-apk/app-release.apk
-          name: Release ${{ github.ref_name }}
+          files: "english_dictation_flutter/build/app/outputs/flutter-apk/英语听写·艨艟战舰.apk"
+          name: ${{ github.ref_name }}
           draft: false
           prerelease: false

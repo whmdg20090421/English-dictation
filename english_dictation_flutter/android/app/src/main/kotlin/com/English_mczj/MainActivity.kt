@@ -1,4 +1,4 @@
-package com.example.english_dictation_flutter
+package com.English_mczj
 
 import io.flutter.embedding.android.FlutterActivity
 
