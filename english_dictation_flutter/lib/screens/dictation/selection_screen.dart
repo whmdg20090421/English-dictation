@@ -84,12 +84,12 @@ class _SelectionScreenState extends State<SelectionScreen> {
 
   void _startMixedTest() {
     if (_totalWords == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请先添加单词!')));
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(const SnackBar(content: Text('请先添加单词!')));
       return;
     }
     
     if (!_spellingEnabled && !_posEnabled && !_translationEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请至少勾选一种题型！')));
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(const SnackBar(content: Text('请至少勾选一种题型！')));
       return;
     }
 

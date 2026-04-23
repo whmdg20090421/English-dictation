@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../sync/cloud_sync_service.dart';
+import '../app_state.dart';
 
 class DataManager {
   static final DataManager instance = DataManager._init();
@@ -37,12 +38,30 @@ class DataManager {
 
   Future<void> loadData() async {
     // Attempt to download from cloud first if password is set
-    final cloudData = await CloudSyncService().downloadData();
-    if (cloudData != null) {
-      vocab = cloudData['vocab'] ?? {};
-      accounts = cloudData['accounts'] ?? {};
-      globalSettings = cloudData['global_settings'] ?? {};
+    final publicData = await CloudSyncService().downloadPublicData();
+    if (publicData != null) {
+      vocab = publicData['vocab'] ?? {};
+      globalSettings = publicData['global_settings'] ?? {};
       
+      // Attempt to download personal data for all local accounts
+      // First, load local accounts to know which ones to fetch
+      final db = await instance.database;
+      final List<Map<String, dynamic>> maps = await db.query('Store', where: 'key = ?', whereArgs: ['accounts']);
+      if (maps.isNotEmpty) {
+        final localAccounts = jsonDecode(maps.first['value'] as String) as Map<String, dynamic>;
+        for (var accId in localAccounts.keys) {
+          final accName = localAccounts[accId]['name'];
+          if (accName != null) {
+            final personalData = await CloudSyncService().downloadPersonalData(accName);
+            if (personalData != null && personalData['account'] != null) {
+              accounts[accId] = personalData['account'];
+            } else {
+              accounts[accId] = localAccounts[accId];
+            }
+          }
+        }
+      }
+
       // Save cloud data to local DB to keep it in sync
       await _saveToLocalDB();
       rebuildPosCache();
@@ -51,19 +70,20 @@ class DataManager {
 
     final db = await instance.database;
     final List<Map<String, dynamic>> maps = await db.query('Store');
-    
+
     Map<String, dynamic> data = {};
     for (var map in maps) {
       data[map['key'] as String] = jsonDecode(map['value'] as String);
     }
-    
+
     vocab = data['vocab'] ?? {};
     accounts = data['accounts'] ?? {};
     globalSettings = data['global_settings'] ?? {};
-    
+
     if (accounts.isEmpty) {
       accounts['default'] = {
         "name": "默认账户",
+        "role": "admin",
         "history": [],
         "stats": {},
         "settings": {
@@ -116,13 +136,42 @@ class DataManager {
   Future<void> saveData() async {
     rebuildPosCache();
     await _saveToLocalDB();
-    
+
     // Upload to cloud as single source of truth
-    await CloudSyncService().uploadData({
+    await CloudSyncService().uploadPublicData({
       'vocab': vocab,
-      'accounts': accounts,
       'global_settings': globalSettings,
     });
+
+    // Determine current user
+    // Since AppState depends on DataManager, we might not have direct access to AppState here without circular dependency
+    // But we can check if the current user is admin by importing AppState or passing it
+    // To avoid dependency issues, let's import app_state.dart
+    final appState = AppState.instance;
+    final currentAcc = getAcc(appState.currentAccountId);
+    final isAdmin = currentAcc['role'] == 'admin';
+
+    // Upload personal data
+    if (isAdmin) {
+      // Admins sync all local accounts to their respective directories
+      for (var accId in accounts.keys) {
+        final acc = accounts[accId];
+        final accName = acc['name'];
+        if (accName != null) {
+          await CloudSyncService().uploadPersonalData(accName, {
+            'account': acc,
+          });
+        }
+      }
+    } else {
+      // Regular users only sync their own directory
+      final accName = currentAcc['name'];
+      if (accName != null) {
+        await CloudSyncService().uploadPersonalData(accName, {
+          'account': currentAcc,
+        });
+      }
+    }
   }
 
   void updateWordStats(String accId, String wordText, bool isCorrect, [double timeSpent = 0]) {

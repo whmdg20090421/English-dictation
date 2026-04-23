@@ -33,7 +33,7 @@ jobs:
 
       - name: Build APK
         working-directory: ./english_dictation_flutter
-        run: flutter build apk --release
+        run: flutter build apk --release --dart-define=ENCRYPTION_KEY=${{ secrets.KEY_PASSWORD }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

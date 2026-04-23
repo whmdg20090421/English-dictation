@@ -55,7 +55,7 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
         );
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           const SnackBar(content: Text('配置上传失败，请检查网络或WebDAV设置')),
         );
       }

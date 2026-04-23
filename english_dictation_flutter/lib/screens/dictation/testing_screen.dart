@@ -50,7 +50,7 @@ class _TestingScreenState extends State<TestingScreen> {
       _provider.tick();
       if (_provider.totLeft <= 0) {
         _timer?.cancel();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('总时间耗尽！系统已强制交卷。')));
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(const SnackBar(content: Text('总时间耗尽！系统已强制交卷。')));
         _actionSubmit();
       }
     });
@@ -103,7 +103,7 @@ class _TestingScreenState extends State<TestingScreen> {
       hintText = "Start with: ${target.isNotEmpty ? target[0] : ''}";
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('提示: $hintText'), duration: const Duration(seconds: 2)));
+    ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('提示: $hintText'), duration: const Duration(seconds: 2)));
   }
 
   bool _checkSpelling(String rawAns, String target) {

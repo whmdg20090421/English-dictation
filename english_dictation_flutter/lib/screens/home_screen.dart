@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../app_state.dart';
+import '../components/cloud_status_indicator.dart';
 import 'dictation/selection_screen.dart';
 import '../db/data_manager.dart';
 import '../utils/dialogs.dart';
@@ -70,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  acc['name'] ?? '',
+                                  '${acc['name'] ?? ''} ${acc['role'] == 'admin' ? '[管理员]' : '[普通]'}',
                                   style: TextStyle(
                                     color: isCurrent ? Colors.blue[300] : Colors.white,
                                     fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
@@ -90,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       if (newName.isNotEmpty && newName != acc['name']) {
                                         acc['name'] = newName;
                                         DataManager.instance.saveData().then((_) {
-                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已重命名为: $newName'), backgroundColor: Colors.green));
+                                          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('已重命名为: $newName'), backgroundColor: Colors.green));
                                           setStateDialog(() {});
                                           setState(() {});
                                         });
@@ -103,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 icon: const Icon(Icons.delete, size: 20, color: Colors.redAccent),
                                 onPressed: () {
                                   if (accounts.length <= 1) {
-                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('这是系统中最后一个账户，无法删除！请先创建新账户。'), backgroundColor: Colors.orange));
+                                    ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(const SnackBar(content: Text('这是系统中最后一个账户，无法删除！请先创建新账户。'), backgroundColor: Colors.orange));
                                     return;
                                   }
                                   DialogUtils.requirePassword(context, () {
@@ -115,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           AppState.instance.currentAccountId = accounts.keys.first;
                                         }
                                         DataManager.instance.saveData().then((_) {
-                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('账户 [${acc['name']}] 已彻底删除'), backgroundColor: Colors.green));
+                                          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('账户 [${acc['name']}] 已彻底删除'), backgroundColor: Colors.green));
                                           setStateDialog(() {});
                                           setState(() {});
                                         });
@@ -129,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   onPressed: () {
                                     DialogUtils.requirePassword(context, () {
                                       AppState.instance.currentAccountId = accId;
-                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已切换至账户: ${acc['name']}'), backgroundColor: Colors.green));
+                                      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('已切换至账户: ${acc['name']}'), backgroundColor: Colors.green));
                                       Navigator.pop(context);
                                       setState(() {});
                                     });
@@ -147,18 +148,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   ElevatedButton(
                     onPressed: () {
                       DialogUtils.requirePassword(context, () {
-                        DialogUtils.promptDialog(context, '新建账户', '输入姓名/昵称', '', (name) {
+                        DialogUtils.promptAccountDialog(context, (name, role) {
                           if (name.isNotEmpty) {
                             final newId = DateTime.now().millisecondsSinceEpoch.toString();
                             final baseSettings = DataManager.instance.getAcc("default")["settings"] ?? {};
                             DataManager.instance.accounts[newId] = {
                               "name": name,
+                              "role": role,
                               "history": [],
                               "stats": {},
                               "settings": Map.from(baseSettings)
                             };
                             DataManager.instance.saveData().then((_) {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('账户 $name 已创建'), backgroundColor: Colors.green));
+                              ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('账户 $name ($role) 已创建'), backgroundColor: Colors.green));
                               setStateDialog(() {});
                               setState(() {});
                             });
@@ -203,7 +205,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     
     if (mistakes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('太棒了，当前账户没有错题记录！'), backgroundColor: Colors.green));
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(const SnackBar(content: Text('太棒了，当前账户没有错题记录！'), backgroundColor: Colors.green));
       return;
     }
     
@@ -273,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: () {
                   final selected = mistakes.where((m) => selectedMap[m['_uid']] == true).toList();
                   if (selected.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请至少选择一题'), backgroundColor: Colors.orange));
+                    ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(const SnackBar(content: Text('请至少选择一题'), backgroundColor: Colors.orange));
                     return;
                   }
                   AppState.instance.selectedWords = selected;
@@ -318,6 +320,11 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: Stack(
           children: [
+            Positioned(
+              top: 16,
+              left: 16,
+              child: const CloudStatusIndicator(),
+            ),
             Positioned(
               top: 16,
               right: 16,
@@ -374,7 +381,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ElevatedButton(
                       onPressed: () {
                         if (DataManager.instance.vocab.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('暂无词库请先导入'), backgroundColor: Colors.orange));
+                          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(const SnackBar(content: Text('暂无词库请先导入'), backgroundColor: Colors.orange));
                           return;
                         }
                         AppState.instance.selectedWords = []; // clear to use all words

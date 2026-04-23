@@ -43,7 +43,7 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
 
   void _showFolderStats(String title, Set<String> wordSet) {
     if (wordSet.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('该目录下没有有效单词'), backgroundColor: Colors.orange));
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(const SnackBar(content: Text('该目录下没有有效单词'), backgroundColor: Colors.orange));
       return;
     }
 

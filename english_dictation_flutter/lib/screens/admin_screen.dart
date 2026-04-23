@@ -153,11 +153,8 @@ class _WordsTabState extends State<_WordsTab> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  onPressed: () {
-                    // TODO: 保存逻辑
-                    Navigator.pop(context);
-                  },
-                  child: const Text('保存'),
+                  onPressed: null,
+                  child: const Text('保存 (未实现)'),
                 ),
               ],
             );
@@ -220,9 +217,9 @@ class _WordsTabState extends State<_WordsTab> {
                                   onPressed: () => _showWordDialog(bookEntry.key, unitEntry.key, wordId: wordEntry.key, initialData: wordEntry.value),
                                 ),
                               if (_isEditMode) ...[
-                                IconButton(icon: const Icon(Icons.arrow_upward), onPressed: () {}),
-                                IconButton(icon: const Icon(Icons.arrow_downward), onPressed: () {}),
-                                IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () {}),
+                                // IconButton(icon: const Icon(Icons.arrow_upward), onPressed: () {}),
+                                // IconButton(icon: const Icon(Icons.arrow_downward), onPressed: () {}),
+                                // IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () {}),
                               ]
                             ],
                           ),
@@ -245,7 +242,7 @@ class _ImportExportTab extends StatelessWidget {
 
   void _safeCopy(BuildContext context, String text, String title) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已尝试复制: $title')));
+    ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('已尝试复制: $title')));
   }
 
   @override
@@ -288,17 +285,17 @@ class _ImportExportTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          const Text('指定导入目标 (书册或单词集)', style: TextStyle(color: Colors.amber, fontSize: 16)),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(alignment: Alignment.centerLeft, backgroundColor: Colors.blue.withOpacity(0.5)),
-            onPressed: () {},
-            child: const Text('导入位置: / (根目录)'),
-          ),
-          const SizedBox(height: 8),
+          // const Text('指定导入目标 (书册或单词集)', style: TextStyle(color: Colors.amber, fontSize: 16)),
+          // ElevatedButton(
+          //   style: ElevatedButton.styleFrom(alignment: Alignment.centerLeft, backgroundColor: Colors.blue.withOpacity(0.5)),
+          //   onPressed: null, // () {},
+          //   child: const Text('导入位置: / (根目录)'),
+          // ),
+          // const SizedBox(height: 8),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: const EdgeInsets.symmetric(vertical: 12)),
-            onPressed: () {},
-            child: const Text('智能校验并导入', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            onPressed: null, // () {},
+            child: const Text('智能校验并导入 (未实现)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ),
           const SizedBox(height: 24),
           const Text('获取 AI 格式化提示词', style: TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold, fontSize: 18)),
@@ -332,18 +329,18 @@ class _ImportExportTab extends StatelessWidget {
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
-                  onPressed: () {},
+                  onPressed: null, // () {},
                   icon: const Icon(Icons.download),
-                  label: const Text('下载完整备份'),
+                  label: const Text('下载完整备份 (未实现)'),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
-                  onPressed: () {},
+                  onPressed: null, // () {},
                   icon: const Icon(Icons.content_copy),
-                  label: const Text('复制词库代码'),
+                  label: const Text('复制词库代码 (未实现)'),
                 ),
               ),
             ],
@@ -410,16 +407,16 @@ class _SettingsTabState extends State<_SettingsTab> {
         const Text('[当前账户] 数据清理区', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.redAccent)),
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(backgroundColor: Colors.red[800]),
-          onPressed: () {},
+          onPressed: null, // () {},
           icon: const Icon(Icons.delete_sweep),
-          label: const Text('清空所有统计与历史记录 (需验密)'),
+          label: const Text('清空所有统计与历史记录 (未实现)'),
         ),
         const SizedBox(height: 8),
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(backgroundColor: Colors.red[600]),
-          onPressed: () {},
+          onPressed: null, // () {},
           icon: const Icon(Icons.playlist_remove),
-          label: const Text('仅清空错题本记录 (需验密)'),
+          label: const Text('仅清空错题本记录 (未实现)'),
         ),
         const SizedBox(height: 16),
         const Text('全局安全控制与密码管理', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber)),
@@ -433,7 +430,7 @@ class _SettingsTabState extends State<_SettingsTab> {
                 const Text('高强度密码加密隔离', style: TextStyle(fontWeight: FontWeight.bold)),
                 const Text('当前状态：🔒 已加密隐藏 (安全)', style: TextStyle(color: Colors.amber)),
                 const SizedBox(height: 8),
-                ElevatedButton(onPressed: () {}, child: const Text('点击切换加密/明文状态')),
+                ElevatedButton(onPressed: null, child: const Text('点击切换加密/明文状态 (未实现)')),
               ],
             ),
           ),
@@ -449,7 +446,7 @@ class _SettingsTabState extends State<_SettingsTab> {
                 const TextField(decoration: InputDecoration(labelText: '请输入当前旧密码'), obscureText: true),
                 const TextField(decoration: InputDecoration(labelText: '请输入新密码'), obscureText: true),
                 const SizedBox(height: 8),
-                ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () {}, child: const Text('确认修改密码')),
+                ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: null, child: const Text('确认修改密码 (未实现)')),
               ],
             ),
           ),
@@ -458,9 +455,9 @@ class _SettingsTabState extends State<_SettingsTab> {
         const Text('全局危险操作核心区', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.redAccent)),
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(backgroundColor: Colors.red[900]),
-          onPressed: () {},
+          onPressed: null,
           icon: const Icon(Icons.delete_forever),
-          label: const Text('抹除所有账户及词库数据 (需验密)'),
+          label: const Text('抹除所有账户及词库数据 (未实现)'),
         ),
       ],
     );
@@ -484,8 +481,8 @@ class _LogsTab extends StatelessWidget {
               const SizedBox(height: 8),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: () {},
-                child: const Text('清空所有记录'),
+                onPressed: null,
+                child: const Text('清空所有记录 (未实现)'),
               ),
             ],
           ),

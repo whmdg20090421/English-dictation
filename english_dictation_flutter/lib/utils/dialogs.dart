@@ -80,7 +80,7 @@ class DialogUtils {
       Navigator.pop(context);
       callback();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
         const SnackBar(content: Text('验证失败：密码错误或权限不足'), backgroundColor: Colors.red),
       );
       // Wait for user to re-enter
@@ -154,6 +154,78 @@ class DialogUtils {
               child: const Text('确认', style: TextStyle(color: Colors.white)),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  static void promptAccountDialog(BuildContext context, Function(String name, String role) callback) {
+    final TextEditingController controller = TextEditingController();
+    String selectedRole = 'user';
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: AppTheme.secondaryBlue.withOpacity(0.9),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+                side: const BorderSide(color: AppTheme.glassBorder, width: 1),
+              ),
+              title: const Text('新建账户', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(labelText: '输入姓名/昵称', labelStyle: TextStyle(color: Colors.white54)),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Text('角色:', style: TextStyle(color: Colors.white)),
+                      const SizedBox(width: 16),
+                      DropdownButton<String>(
+                        value: selectedRole,
+                        dropdownColor: AppTheme.secondaryBlue,
+                        style: const TextStyle(color: Colors.white),
+                        items: const [
+                          DropdownMenuItem(value: 'user', child: Text('普通用户')),
+                          DropdownMenuItem(value: 'admin', child: Text('管理员')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setStateDialog(() => selectedRole = val);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(backgroundColor: Colors.grey[500]),
+                  child: const Text('取消', style: TextStyle(color: Colors.white)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final text = controller.text.trim();
+                    if (text.isNotEmpty) {
+                      Navigator.pop(context);
+                      callback(text, selectedRole);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[500]),
+                  child: const Text('确认', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          }
         );
       },
     );

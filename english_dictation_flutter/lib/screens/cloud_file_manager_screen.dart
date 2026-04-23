@@ -1,0 +1,447 @@
+import 'package:flutter/material.dart';
+import 'package:webdav_client/webdav_client.dart' as webdav;
+import '../sync/cloud_sync_service.dart';
+
+class CloudFileManagerScreen extends StatefulWidget {
+  const CloudFileManagerScreen({super.key});
+
+  @override
+  State<CloudFileManagerScreen> createState() => _CloudFileManagerScreenState();
+}
+
+class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
+  final CloudSyncService _syncService = CloudSyncService();
+  String _currentPath = '/英语听写';
+  List<webdav.File> _files = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFiles();
+  }
+
+  Future<void> _loadFiles() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    final files = await _syncService.listFiles(_currentPath);
+    // Remove the current directory from the list if present
+    files.removeWhere((file) => file.path == _currentPath || file.path == '$_currentPath/');
+    
+    // Sort directories first, then files
+    files.sort((a, b) {
+      if (a.isDir == b.isDir) {
+        return a.name?.compareTo(b.name ?? '') ?? 0;
+      }
+      return a.isDir == true ? -1 : 1;
+    });
+
+    if (mounted) {
+      setState(() {
+        _files = files;
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _navigateUp() {
+    if (_currentPath == '/') return;
+    final parts = _currentPath.split('/');
+    parts.removeLast();
+    if (parts.isEmpty) {
+      _currentPath = '/';
+    } else {
+      _currentPath = parts.join('/');
+    }
+    if (_currentPath.isEmpty) _currentPath = '/';
+    _loadFiles();
+  }
+
+  void _navigateTo(String path) {
+    setState(() {
+      _currentPath = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+    });
+    _loadFiles();
+  }
+
+  Future<void> _showDeleteConfirm(webdav.File file) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('确认删除'),
+        content: Text('确定要删除 ${file.name} 吗？\n删除后无法恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && file.path != null) {
+      setState(() => _isLoading = true);
+      final success = await _syncService.deleteFile(file.path!);
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+            const SnackBar(content: Text('删除成功'), backgroundColor: Colors.green),
+          );
+        }
+        _loadFiles();
+      } else {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+            const SnackBar(content: Text('删除失败'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showCreateFolderDialog() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('新建文件夹'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: '文件夹名称'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                Navigator.pop(context, controller.text);
+              }
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+
+    if (name != null && name.isNotEmpty) {
+      setState(() => _isLoading = true);
+      final newPath = _currentPath == '/' ? '/$name' : '$_currentPath/$name';
+      final success = await _syncService.createFolder(newPath);
+      if (success) {
+        _loadFiles();
+      } else {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+            const SnackBar(content: Text('创建文件夹失败'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+  
+  Future<void> _showMoveDialog(webdav.File file) async {
+    if (file.path == null) return;
+    
+    final oldPath = file.path!.endsWith('/') ? file.path!.substring(0, file.path!.length - 1) : file.path!;
+    final controller = TextEditingController(text: oldPath);
+    
+    final newPath = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('重命名 / 移动'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: '新路径'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                Navigator.pop(context, controller.text);
+              }
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+
+    if (newPath != null && newPath.isNotEmpty && newPath != oldPath) {
+      setState(() => _isLoading = true);
+      
+      final success = await _syncService.moveFile(oldPath, newPath);
+      if (success) {
+        _loadFiles();
+      } else {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+            const SnackBar(content: Text('移动/重命名失败'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showCopyDialog(webdav.File file) async {
+    if (file.path == null) return;
+    
+    final oldPath = file.path!.endsWith('/') ? file.path!.substring(0, file.path!.length - 1) : file.path!;
+    final controller = TextEditingController(text: '${oldPath}_副本');
+    
+    final newPath = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('复制文件'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: '副本路径'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                Navigator.pop(context, controller.text);
+              }
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+
+    if (newPath != null && newPath.isNotEmpty && newPath != oldPath) {
+      setState(() => _isLoading = true);
+      
+      final success = await _syncService.copyFile(oldPath, newPath);
+      if (success) {
+        _loadFiles();
+      } else {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+            const SnackBar(content: Text('复制失败'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+  
+  Future<void> _viewOrEditFile(webdav.File file) async {
+    if (file.path == null) return;
+    
+    setState(() => _isLoading = true);
+    final content = await _syncService.readFileText(file.path!);
+    
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    
+    if (content == null) {
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+        const SnackBar(content: Text('无法读取文件内容（可能不是文本文件）'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    
+    final controller = TextEditingController(text: content);
+    final newContent = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('编辑文件 - ${file.name}'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            controller: controller,
+            maxLines: 15,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: '文件内容',
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    
+    if (newContent != null && newContent != content) {
+      setState(() => _isLoading = true);
+      final success = await _syncService.writeFileText(file.path!, newContent);
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+            const SnackBar(content: Text('保存成功'), backgroundColor: Colors.green),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+            const SnackBar(content: Text('保存失败'), backgroundColor: Colors.red),
+          );
+        }
+      }
+      _loadFiles();
+    }
+  }
+  
+  void _showFileOptions(webdav.File file) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(file.name ?? '未知', style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(file.isDir == true ? '文件夹' : '文件'),
+            ),
+            const Divider(),
+            if (file.isDir != true)
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('查看/编辑内容'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _viewOrEditFile(file);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.drive_file_rename_outline),
+              title: const Text('重命名 / 移动'),
+              onTap: () {
+                Navigator.pop(context);
+                _showMoveDialog(file);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.content_copy),
+              title: const Text('复制'),
+              onTap: () {
+                Navigator.pop(context);
+                _showCopyDialog(file);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('删除', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteConfirm(file);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('云端文件管理'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.create_new_folder),
+            onPressed: _showCreateFolderDialog,
+            tooltip: '新建文件夹',
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadFiles,
+            tooltip: '刷新',
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: Colors.grey[200],
+            width: double.infinity,
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_upward),
+                  onPressed: _currentPath == '/' ? null : _navigateUp,
+                  tooltip: '返回上一级',
+                ),
+                Expanded(
+                  child: Text(
+                    _currentPath,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _files.isEmpty
+                    ? const Center(child: Text('文件夹为空'))
+                    : ListView.builder(
+                        itemCount: _files.length,
+                        itemBuilder: (context, index) {
+                          final file = _files[index];
+                          final isDir = file.isDir == true;
+                          return ListTile(
+                            leading: Icon(
+                              isDir ? Icons.folder : Icons.insert_drive_file,
+                              color: isDir ? Colors.amber : Colors.blue,
+                              size: 32,
+                            ),
+                            title: Text(file.name ?? '未知'),
+                            subtitle: Text(file.mTime?.toString() ?? ''),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.more_vert),
+                              onPressed: () => _showFileOptions(file),
+                            ),
+                            onTap: () {
+                              if (isDir && file.path != null) {
+                                _navigateTo(file.path!);
+                              } else {
+                                _showFileOptions(file);
+                              }
+                            },
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+}

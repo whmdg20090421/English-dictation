@@ -130,13 +130,8 @@ class _VideoDictationScreenState extends State<VideoDictationScreen> {
                   ),
                   const SizedBox(height: 10),
                   ElevatedButton(
-                    onPressed: () {
-                      // 这里可以添加提交听写文本的逻辑
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Dictation submitted!")),
-                      );
-                    },
-                    child: const Text("Submit"),
+                    onPressed: null,
+                    child: const Text("Submit (未实现)"),
                   )
                 ],
               ),

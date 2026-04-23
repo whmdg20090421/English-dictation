@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:encrypt/encrypt.dart' as encrypt;
@@ -15,9 +16,17 @@ class CloudSyncService {
   final String _webdavUrl = 'https://webdav.123pan.cn/webdav';
   final String _user = '18302339198';
   final String _pwd = 'c4zl1zkp';
-  final String _configPath = '/英语听写/data/config.json';
-  final String _dataPath = '/英语听写/data/data.json';
+  final String _basePath = '/英语听写';
+  final String _publicDataFolder = '/英语听写/公共数据';
+  final String _configPath = '/英语听写/公共数据/配置.json';
+  final String _publicDataPath = '/英语听写/公共数据/数据.json';
   String? _encryptionPassword;
+
+  // Connection status stream
+  final _connectionStatusController = StreamController<bool>.broadcast();
+  Stream<bool> get connectionStatusStream => _connectionStatusController.stream;
+  bool _isConnected = false;
+  bool get isConnected => _isConnected;
 
   void init() {
     if (!_isInitialized) {
@@ -28,7 +37,24 @@ class CloudSyncService {
         debug: true,
       );
       _isInitialized = true;
+      _checkConnection();
     }
+  }
+
+  Future<void> _checkConnection() async {
+    try {
+      await _client.ping();
+      _isConnected = true;
+    } catch (e) {
+      _isConnected = false;
+    }
+    _connectionStatusController.add(_isConnected);
+  }
+
+  Future<bool> ping() async {
+    init();
+    await _checkConnection();
+    return _isConnected;
   }
 
   void setEncryptionPassword(String password) {
@@ -39,7 +65,9 @@ class CloudSyncService {
 
   // Derive a 32-byte key from the password using SHA-256
   encrypt.Key _deriveKey(String password) {
-    final bytes = utf8.encode(password);
+    const envKey = String.fromEnvironment('ENCRYPTION_KEY');
+    final String keyToUse = envKey.isNotEmpty ? envKey : password;
+    final bytes = utf8.encode(keyToUse);
     final digest = sha256.convert(bytes);
     return encrypt.Key(Uint8List.fromList(digest.bytes));
   }
@@ -90,10 +118,10 @@ class CloudSyncService {
     init();
     try {
       // We can try to get the file info or read it
-      await _client.readDir('/英语听写/data');
-      final files = await _client.readDir('/英语听写/data');
+      await _client.readDir(_publicDataFolder);
+      final files = await _client.readDir(_publicDataFolder);
       for (var file in files) {
-        if (file.path == _configPath || file.name == 'config.json') {
+        if (file.path == _configPath || file.name == '配置.json') {
           return true;
         }
       }
@@ -126,7 +154,7 @@ class CloudSyncService {
         await _client.mkdir('/英语听写');
       } catch (_) {}
       try {
-        await _client.mkdir('/英语听写/data');
+        await _client.mkdir(_publicDataFolder);
       } catch (_) {}
 
       final encryptedBase64 = encryptData(data, password);
@@ -140,39 +168,152 @@ class CloudSyncService {
     }
   }
 
-  // Download and decrypt data
-  Future<Map<String, dynamic>?> downloadData() async {
+  // Get personal data path
+  String _getPersonalDataPath(String username) {
+    return '$_basePath/$username/数据/数据.json';
+  }
+
+  // Get personal data folder
+  String _getPersonalDataFolder(String username) {
+    return '$_basePath/$username/数据';
+  }
+
+  // Ensure directories exist
+  Future<void> _ensureDir(String path) async {
+    final parts = path.split('/').where((p) => p.isNotEmpty).toList();
+    String current = '';
+    for (var part in parts) {
+      current += '/$part';
+      try {
+        await _client.mkdir(current);
+      } catch (_) {}
+    }
+  }
+
+  // Download and decrypt public data
+  Future<Map<String, dynamic>?> downloadPublicData() async {
+    return _downloadFromPath(_publicDataPath);
+  }
+
+  // Download and decrypt personal data
+  Future<Map<String, dynamic>?> downloadPersonalData(String username) async {
+    return _downloadFromPath(_getPersonalDataPath(username));
+  }
+
+  Future<Map<String, dynamic>?> _downloadFromPath(String path) async {
     if (_encryptionPassword == null) return null;
     init();
     try {
-      final bytes = await _client.read(_dataPath);
+      final bytes = await _client.read(path);
       final base64String = utf8.decode(bytes);
       return decryptData(base64String, _encryptionPassword!);
     } catch (e) {
-      print('Download data error: \$e');
+      print('Download data error from $path: \$e');
       return null;
     }
   }
 
-  // Encrypt and upload data
-  Future<bool> uploadData(Map<String, dynamic> data) async {
+  // Encrypt and upload public data
+  Future<bool> uploadPublicData(Map<String, dynamic> data) async {
+    return _uploadToPath(_publicDataFolder, _publicDataPath, data);
+  }
+
+  // Encrypt and upload personal data
+  Future<bool> uploadPersonalData(String username, Map<String, dynamic> data) async {
+    return _uploadToPath(_getPersonalDataFolder(username), _getPersonalDataPath(username), data);
+  }
+
+  Future<bool> _uploadToPath(String folderPath, String filePath, Map<String, dynamic> data) async {
     if (_encryptionPassword == null) return false;
     init();
     try {
-      try {
-        await _client.mkdir('/英语听写');
-      } catch (_) {}
-      try {
-        await _client.mkdir('/英语听写/data');
-      } catch (_) {}
+      await _ensureDir(folderPath);
 
       final encryptedBase64 = encryptData(data, _encryptionPassword!);
       final bytes = Uint8List.fromList(utf8.encode(encryptedBase64));
-      
-      await _client.write(_dataPath, bytes);
+
+      await _client.write(filePath, bytes);
       return true;
     } catch (e) {
-      print('Upload data error: \$e');
+      print('Upload data error to $filePath: $e');
+      return false;
+    }
+  }
+
+  // Admin File Management Methods
+  Future<List<webdav.File>> listFiles(String path) async {
+    init();
+    try {
+      return await _client.readDir(path);
+    } catch (e) {
+      print('List files error: $e');
+      return [];
+    }
+  }
+
+  Future<bool> createFolder(String path) async {
+    init();
+    try {
+      await _client.mkdir(path);
+      return true;
+    } catch (e) {
+      print('Create folder error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteFile(String path) async {
+    init();
+    try {
+      await _client.removeAll(path);
+      return true;
+    } catch (e) {
+      print('Delete file error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> moveFile(String fromPath, String toPath) async {
+    init();
+    try {
+      await _client.rename(fromPath, toPath, false); // false for overwrite? WebDAV typically uses rename or move.
+      return true;
+    } catch (e) {
+      print('Move file error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> copyFile(String fromPath, String toPath) async {
+    init();
+    try {
+      await _client.copy(fromPath, toPath, false);
+      return true;
+    } catch (e) {
+      print('Copy file error: $e');
+      return false;
+    }
+  }
+  
+  Future<String?> readFileText(String path) async {
+    init();
+    try {
+      final bytes = await _client.read(path);
+      return utf8.decode(bytes);
+    } catch (e) {
+      print('Read file error: $e');
+      return null;
+    }
+  }
+  
+  Future<bool> writeFileText(String path, String content) async {
+    init();
+    try {
+      final bytes = Uint8List.fromList(utf8.encode(content));
+      await _client.write(path, bytes);
+      return true;
+    } catch (e) {
+      print('Write file error: $e');
       return false;
     }
   }
