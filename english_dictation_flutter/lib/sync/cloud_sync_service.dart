@@ -2,15 +2,19 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:encrypt/encrypt.dart' as encrypt;
-import 'package:webdav_client/webdav_client.dart' as webdav;
 import 'package:crypto/crypto.dart';
+
+import 'webdav_new/webdav_client.dart';
+import 'webdav_new/webdav_service.dart';
+import 'webdav_new/webdav_file.dart';
 
 class CloudSyncService {
   static final CloudSyncService _instance = CloudSyncService._internal();
   factory CloudSyncService() => _instance;
   CloudSyncService._internal();
 
-  late webdav.Client _client;
+  late WebDavClient _client;
+  late WebDavService _service;
   bool _isInitialized = false;
 
   final String _webdavUrl = 'https://webdav.123pan.cn/webdav';
@@ -41,12 +45,12 @@ class CloudSyncService {
 
   void init() {
     if (!_isInitialized) {
-      _client = webdav.newClient(
-        _webdavUrl,
-        user: _user,
+      _client = WebDavClient(
+        baseUrl: _webdavUrl,
+        username: _user,
         password: _pwd,
-        debug: true,
       );
+      _service = WebDavService(_client);
       _isInitialized = true;
       _checkConnection();
     }
@@ -54,7 +58,8 @@ class CloudSyncService {
 
   Future<void> _checkConnection() async {
     try {
-      await _client.ping();
+      // 123pan doesn't support OPTIONS well, so use PROPFIND on root to check connection
+      await _service.readDir('/');
       _isConnected = true;
       _connectionStatusController.add(_isConnected);
     } catch (e) {
@@ -129,7 +134,7 @@ class CloudSyncService {
     init();
     try {
       final dirPath = _publicDataFolder.endsWith('/') ? _publicDataFolder : '$_publicDataFolder/';
-      final files = await _client.readDir(dirPath);
+      final files = await _service.readDir(dirPath);
       for (var file in files) {
         if (file.path == _configPath || file.name == '配置.json') {
           return true;
@@ -147,7 +152,7 @@ class CloudSyncService {
   Future<Map<String, dynamic>?> downloadConfig(String password) async {
     init();
     try {
-      final bytes = await _client.read(_configPath);
+      final bytes = await _service.readBytes(_configPath);
       final base64String = utf8.decode(bytes);
       return decryptData(base64String, password);
     } catch (e) {
@@ -165,7 +170,7 @@ class CloudSyncService {
       final encryptedBase64 = encryptData(data, password);
       final bytes = Uint8List.fromList(utf8.encode(encryptedBase64));
       
-      await _client.write(_configPath, bytes);
+      await _service.writeBytes(_configPath, bytes.toList());
       return true;
     } catch (e) {
       _logError('Upload config error: $e');
@@ -190,7 +195,7 @@ class CloudSyncService {
     for (var part in parts) {
       current += '/$part';
       try {
-        await _client.mkdir('$current/');
+        await _service.mkdir('$current/');
       } catch (e) {
         print('mkdir $current/ error (expected if exists): $e');
       }
@@ -211,7 +216,7 @@ class CloudSyncService {
     if (_encryptionPassword == null) return null;
     init();
     try {
-      final bytes = await _client.read(path);
+      final bytes = await _service.readBytes(path);
       final base64String = utf8.decode(bytes);
       return decryptData(base64String, _encryptionPassword!);
     } catch (e) {
@@ -239,7 +244,7 @@ class CloudSyncService {
       final encryptedBase64 = encryptData(data, _encryptionPassword!);
       final bytes = Uint8List.fromList(utf8.encode(encryptedBase64));
 
-      await _client.write(filePath, bytes);
+      await _service.writeBytes(filePath, bytes.toList());
       return true;
     } catch (e) {
       _logError('Upload data error to $filePath: $e');
@@ -248,10 +253,10 @@ class CloudSyncService {
   }
 
   // Admin File Management Methods
-  Future<List<webdav.File>> listFiles(String path) async {
+  Future<List<WebDavFile>> listFiles(String path) async {
     init();
     try {
-      return await _client.readDir(path);
+      return await _service.readDir(path);
     } catch (e) {
       _logError('List files error: $e');
       return [];
@@ -261,7 +266,7 @@ class CloudSyncService {
   Future<bool> createFolder(String path) async {
     init();
     try {
-      await _client.mkdir(path);
+      await _service.mkdir(path);
       return true;
     } catch (e) {
       _logError('Create folder error: $e');
@@ -272,7 +277,7 @@ class CloudSyncService {
   Future<bool> deleteFile(String path) async {
     init();
     try {
-      await _client.removeAll(path);
+      await _service.remove(path);
       return true;
     } catch (e) {
       _logError('Delete file error: $e');
@@ -283,7 +288,7 @@ class CloudSyncService {
   Future<bool> moveFile(String fromPath, String toPath) async {
     init();
     try {
-      await _client.rename(fromPath, toPath, false); // false for overwrite? WebDAV typically uses rename or move.
+      await _service.move(fromPath, toPath);
       return true;
     } catch (e) {
       _logError('Move file error: $e');
@@ -294,7 +299,7 @@ class CloudSyncService {
   Future<bool> copyFile(String fromPath, String toPath) async {
     init();
     try {
-      await _client.copy(fromPath, toPath, false);
+      await _service.copy(fromPath, toPath);
       return true;
     } catch (e) {
       _logError('Copy file error: $e');
@@ -305,7 +310,7 @@ class CloudSyncService {
   Future<String?> readFileText(String path) async {
     init();
     try {
-      final bytes = await _client.read(path);
+      final bytes = await _service.readBytes(path);
       return utf8.decode(bytes);
     } catch (e) {
       _logError('Read file error: $e');
@@ -317,7 +322,7 @@ class CloudSyncService {
     init();
     try {
       final bytes = Uint8List.fromList(utf8.encode(content));
-      await _client.write(path, bytes);
+      await _service.writeBytes(path, bytes.toList());
       return true;
     } catch (e) {
       _logError('Write file error: $e');

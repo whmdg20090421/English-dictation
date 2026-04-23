@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:webdav_client/webdav_client.dart' as webdav;
+import '../sync/webdav_new/webdav_file.dart';
 import '../sync/cloud_sync_service.dart';
 
 class CloudFileManagerScreen extends StatefulWidget {
@@ -12,7 +12,7 @@ class CloudFileManagerScreen extends StatefulWidget {
 class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
   final CloudSyncService _syncService = CloudSyncService();
   String _currentPath = '/英语听写';
-  List<webdav.File> _files = [];
+  List<WebDavFile> _files = [];
   bool _isLoading = true;
 
   @override
@@ -32,10 +32,10 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
     
     // Sort directories first, then files
     files.sort((a, b) {
-      if (a.isDir == b.isDir) {
-        return a.name?.compareTo(b.name ?? '') ?? 0;
+      if (a.isDirectory == b.isDirectory) {
+        return a.name.compareTo(b.name);
       }
-      return a.isDir == true ? -1 : 1;
+      return a.isDirectory ? -1 : 1;
     });
 
     if (mounted) {
@@ -66,7 +66,7 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
     _loadFiles();
   }
 
-  Future<void> _showDeleteConfirm(webdav.File file) async {
+  Future<void> _showDeleteConfirm(WebDavFile file) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -86,9 +86,9 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
       ),
     );
 
-    if (confirmed == true && file.path != null) {
+    if (confirmed == true && file.path.isNotEmpty) {
       setState(() => _isLoading = true);
-      final success = await _syncService.deleteFile(file.path!);
+      final success = await _syncService.deleteFile(file.path);
       if (success) {
         if (mounted) {
           ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
@@ -152,10 +152,10 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
     }
   }
   
-  Future<void> _showMoveDialog(webdav.File file) async {
-    if (file.path == null) return;
+  Future<void> _showMoveDialog(WebDavFile file) async {
+    if (file.path.isEmpty) return;
     
-    final oldPath = file.path!.endsWith('/') ? file.path!.substring(0, file.path!.length - 1) : file.path!;
+    final oldPath = file.path.endsWith('/') ? file.path.substring(0, file.path.length - 1) : file.path;
     final controller = TextEditingController(text: oldPath);
     
     final newPath = await showDialog<String>(
@@ -201,10 +201,10 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
     }
   }
 
-  Future<void> _showCopyDialog(webdav.File file) async {
-    if (file.path == null) return;
+  Future<void> _showCopyDialog(WebDavFile file) async {
+    if (file.path.isEmpty) return;
     
-    final oldPath = file.path!.endsWith('/') ? file.path!.substring(0, file.path!.length - 1) : file.path!;
+    final oldPath = file.path.endsWith('/') ? file.path.substring(0, file.path.length - 1) : file.path;
     final controller = TextEditingController(text: '${oldPath}_副本');
     
     final newPath = await showDialog<String>(
@@ -250,11 +250,11 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
     }
   }
   
-  Future<void> _viewOrEditFile(webdav.File file) async {
-    if (file.path == null) return;
+  Future<void> _viewOrEditFile(WebDavFile file) async {
+    if (file.path.isEmpty) return;
     
     setState(() => _isLoading = true);
-    final content = await _syncService.readFileText(file.path!);
+    final content = await _syncService.readFileText(file.path);
     
     if (!mounted) return;
     setState(() => _isLoading = false);
@@ -297,7 +297,7 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
     
     if (newContent != null && newContent != content) {
       setState(() => _isLoading = true);
-      final success = await _syncService.writeFileText(file.path!, newContent);
+      final success = await _syncService.writeFileText(file.path, newContent);
       if (success) {
         if (mounted) {
           ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
@@ -315,7 +315,7 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
     }
   }
   
-  void _showFileOptions(webdav.File file) {
+  void _showFileOptions(WebDavFile file) {
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -323,11 +323,11 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: Text(file.name ?? '未知', style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(file.isDir == true ? '文件夹' : '文件'),
+              title: Text(file.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(file.isDirectory ? '文件夹' : '文件'),
             ),
             const Divider(),
-            if (file.isDir != true)
+            if (!file.isDirectory)
               ListTile(
                 leading: const Icon(Icons.edit),
                 title: const Text('查看/编辑内容'),
@@ -416,22 +416,22 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
                         itemCount: _files.length,
                         itemBuilder: (context, index) {
                           final file = _files[index];
-                          final isDir = file.isDir == true;
+                          final isDir = file.isDirectory;
                           return ListTile(
                             leading: Icon(
                               isDir ? Icons.folder : Icons.insert_drive_file,
                               color: isDir ? Colors.amber : Colors.blue,
                               size: 32,
                             ),
-                            title: Text(file.name ?? '未知'),
-                            subtitle: Text(file.mTime?.toString() ?? ''),
+                            title: Text(file.name),
+                            subtitle: Text(file.lastModified?.toString() ?? ''),
                             trailing: IconButton(
                               icon: const Icon(Icons.more_vert),
                               onPressed: () => _showFileOptions(file),
                             ),
                             onTap: () {
-                              if (isDir && file.path != null) {
-                                _navigateTo(file.path!);
+                              if (isDir && file.path.isNotEmpty) {
+                                _navigateTo(file.path);
                               } else {
                                 _showFileOptions(file);
                               }

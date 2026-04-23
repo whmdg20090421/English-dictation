@@ -40,10 +40,11 @@ dependencies:
   flutter_tts: ^4.2.5
   video_player: ^2.11.1
   shared_preferences: ^2.5.5
-  webdav_client: ^1.2.2
   encrypt: ^5.0.3
   crypto: ^3.0.7
   path_provider: ^2.1.5
+  dio: ^5.4.0
+  xml: ^6.3.0
 
 dev_dependencies:
   flutter_test:
