@@ -61,24 +61,19 @@ class DataManager {
           }
         }
       }
+    } else {
+      final db = await instance.database;
+      final List<Map<String, dynamic>> maps = await db.query('Store');
 
-      // Save cloud data to local DB to keep it in sync
-      await _saveToLocalDB();
-      rebuildPosCache();
-      return;
+      Map<String, dynamic> data = {};
+      for (var map in maps) {
+        data[map['key'] as String] = jsonDecode(map['value'] as String);
+      }
+
+      vocab = data['vocab'] ?? {};
+      accounts = data['accounts'] ?? {};
+      globalSettings = data['global_settings'] ?? {};
     }
-
-    final db = await instance.database;
-    final List<Map<String, dynamic>> maps = await db.query('Store');
-
-    Map<String, dynamic> data = {};
-    for (var map in maps) {
-      data[map['key'] as String] = jsonDecode(map['value'] as String);
-    }
-
-    vocab = data['vocab'] ?? {};
-    accounts = data['accounts'] ?? {};
-    globalSettings = data['global_settings'] ?? {};
 
     if (accounts.isEmpty) {
       accounts['default'] = {
@@ -98,7 +93,13 @@ class DataManager {
         }
       };
       await saveData();
+    } else {
+      // Save cloud data to local DB to keep it in sync
+      if (publicData != null) {
+        await _saveToLocalDB();
+      }
     }
+
     rebuildPosCache();
   }
 
