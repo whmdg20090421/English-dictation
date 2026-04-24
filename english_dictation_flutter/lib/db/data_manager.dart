@@ -37,18 +37,28 @@ class DataManager {
   }
 
   Future<void> loadData() async {
+    // Load local data first to see what we have
+    final db = await instance.database;
+    final List<Map<String, dynamic>> maps = await db.query('Store');
+
+    Map<String, dynamic> localData = {};
+    for (var map in maps) {
+      localData[map['key'] as String] = jsonDecode(map['value'] as String);
+    }
+    final localVocab = localData['vocab'] ?? {};
+    final localAccounts = localData['accounts'] ?? {};
+    final localGlobalSettings = localData['global_settings'] ?? {};
+
     // Attempt to download from cloud first if password is set
     final publicData = await CloudSyncService().downloadPublicData();
-    if (publicData != null) {
+    bool isCloudEmpty = publicData == null || ((publicData['vocab'] as Map?)?.isEmpty ?? true);
+
+    if (publicData != null && !isCloudEmpty) {
       vocab = publicData['vocab'] ?? {};
       globalSettings = publicData['global_settings'] ?? {};
       
       // Attempt to download personal data for all local accounts
-      // First, load local accounts to know which ones to fetch
-      final db = await instance.database;
-      final List<Map<String, dynamic>> maps = await db.query('Store', where: 'key = ?', whereArgs: ['accounts']);
-      if (maps.isNotEmpty) {
-        final localAccounts = jsonDecode(maps.first['value'] as String) as Map<String, dynamic>;
+      if (localAccounts.isNotEmpty) {
         for (var accId in localAccounts.keys) {
           final accName = localAccounts[accId]['name'];
           if (accName != null) {
@@ -62,17 +72,10 @@ class DataManager {
         }
       }
     } else {
-      final db = await instance.database;
-      final List<Map<String, dynamic>> maps = await db.query('Store');
-
-      Map<String, dynamic> data = {};
-      for (var map in maps) {
-        data[map['key'] as String] = jsonDecode(map['value'] as String);
-      }
-
-      vocab = data['vocab'] ?? {};
-      accounts = data['accounts'] ?? {};
-      globalSettings = data['global_settings'] ?? {};
+      // Cloud is completely empty or just structural, use local data
+      vocab = localVocab;
+      accounts = localAccounts;
+      globalSettings = localGlobalSettings;
     }
 
     if (accounts.isEmpty) {
@@ -95,7 +98,7 @@ class DataManager {
       await saveData();
     } else {
       // Save cloud data to local DB to keep it in sync
-      if (publicData != null) {
+      if (publicData != null && !isCloudEmpty) {
         await _saveToLocalDB();
       } else {
         // Cloud is empty (or failed to load) but we have local data, initialize cloud with local data
