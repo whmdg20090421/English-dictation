@@ -127,11 +127,13 @@ class _TestingScreenState extends State<TestingScreen> {
   }
 
   void _submitPos() {
-    if (_provider.isSubmitting) return;
     _provider.isSubmitting = true;
     final meta = _provider.testQueue[_provider.currentQIndex];
     final target = meta['word'] as String;
-    final expectedPos = ['n.', 'v.', 'adj.', 'adv.']; // mock valid POS for simplicity
+    
+    // Find all parts of speech in the dictionary for this word
+    final validPosList = meta.keys.where((k) => k.endsWith('.') && k != 'translation' && k != 'word' && k != '_test_mode').toList();
+    final expectedPos = validPosList.isNotEmpty ? validPosList : ['n.']; 
     
     bool isCorrect = _selectedPos.isNotEmpty; // simplistic check
     final ansStr = _selectedPos.isNotEmpty ? _selectedPos.join(',') : "未选择";
@@ -290,7 +292,12 @@ class _TestingScreenState extends State<TestingScreen> {
         ],
       );
     } else if (mode == 'pos') {
-      final opts = ['n.', 'v.', 'adj.', 'adv.', 'prep.', 'conj.'];
+      // Collect available parts of speech from vocab structure or use defaults
+      final Set<String> allPossiblePos = {'n.', 'v.', 'adj.', 'adv.', 'prep.', 'conj.', 'pron.', 'num.', 'art.', 'int.'};
+      final wordPosList = meta.keys.where((k) => k.endsWith('.') && k != 'translation' && k != 'word' && k != '_test_mode').toList();
+      allPossiblePos.addAll(wordPosList);
+      final opts = allPossiblePos.toList()..sort();
+      
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
