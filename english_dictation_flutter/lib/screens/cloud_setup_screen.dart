@@ -49,7 +49,7 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
         CloudSyncService().setEncryptionPassword(_encPwdController.text);
         
         // Initial upload of existing data to cloud
-        await DataManager.instance.saveData();
+        await DataManager.instance.loadData(); // Load local data first, which will auto-initialize empty cloud
 
         if (!mounted) return;
         Navigator.of(context).pushReplacement(

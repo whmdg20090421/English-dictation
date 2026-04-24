@@ -97,6 +97,9 @@ class DataManager {
       // Save cloud data to local DB to keep it in sync
       if (publicData != null) {
         await _saveToLocalDB();
+      } else {
+        // Cloud is empty (or failed to load) but we have local data, initialize cloud with local data
+        await saveData();
       }
     }
 
