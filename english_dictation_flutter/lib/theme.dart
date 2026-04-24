@@ -65,6 +65,11 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
       ),
+      tabBarTheme: const TabBarTheme(
+        labelColor: Colors.blue,
+        unselectedLabelColor: Colors.black54,
+        indicatorColor: Colors.blue,
+      ),
       colorScheme: const ColorScheme.light(
         primary: Colors.blue,
         secondary: Colors.blueAccent,
@@ -105,8 +110,14 @@ class AppTheme {
       scaffoldBackgroundColor: primaryBlue,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+      ),
+      tabBarTheme: const TabBarTheme(
+        labelColor: accentCyan,
+        unselectedLabelColor: Colors.white54,
+        indicatorColor: accentCyan,
       ),
       colorScheme: const ColorScheme.dark(
         primary: primaryBlue,
@@ -152,6 +163,11 @@ class AppTheme {
         elevation: 4,
         shadowColor: cyberNeonPink,
         centerTitle: true,
+      ),
+      tabBarTheme: const TabBarTheme(
+        labelColor: cyberNeonCyan,
+        unselectedLabelColor: cyberNeonPink,
+        indicatorColor: cyberNeonCyan,
       ),
       colorScheme: const ColorScheme.dark(
         primary: cyberNeonCyan,

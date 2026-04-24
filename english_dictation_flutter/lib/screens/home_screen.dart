@@ -225,18 +225,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final myStats = currentAcc['stats'] ?? {};
     
     List<Map<String, dynamic>> mistakes = [];
-    for (var b in DataManager.instance.vocab.values) {
-      for (var u in (b as Map<String, dynamic>).values) {
-        for (var entry in (u as Map<String, dynamic>).entries) {
-          final wid = entry.key;
-          final meta = entry.value as Map<String, dynamic>;
-          final word = meta['单词'];
-          if (word != null && myStats[word] != null && myStats[word]['wrong'] > 0) {
-            final mCopy = Map<String, dynamic>.from(meta);
-            mCopy['_uid'] = wid;
-            mistakes.add(mCopy);
-          }
-        }
+    final allWords = DataManager.getAllWords(DataManager.instance.vocab);
+    
+    for (var meta in allWords) {
+      final word = meta['单词'];
+      if (word != null && myStats[word] != null && myStats[word]['wrong'] > 0) {
+        mistakes.add(meta);
       }
     }
     

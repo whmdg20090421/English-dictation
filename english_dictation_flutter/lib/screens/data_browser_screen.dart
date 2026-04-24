@@ -23,23 +23,6 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
     _myHistory = _currentAcc['history'] ?? [];
   }
 
-  Set<String> _getAllWordsInNode(Map<String, dynamic> nodeDict) {
-    Set<String> words = {};
-    for (var data in nodeDict.values) {
-      if (data['_units'] != null) {
-        final units = data['_units'] as Map<String, dynamic>;
-        for (var uWords in units.values) {
-          for (var meta in (uWords as Map<String, dynamic>).values) {
-            words.add(meta['单词'] ?? '');
-          }
-        }
-      }
-      if (data['children'] != null) {
-        words.addAll(_getAllWordsInNode(data['children']));
-      }
-    }
-    return words;
-  }
 
   void _showFolderStats(String title, Set<String> wordSet) {
     if (wordSet.isEmpty) {
@@ -213,82 +196,86 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
     );
   }
 
-  Widget _buildTree(Map<String, dynamic> tree) {
+  Widget _buildTree(Map<String, dynamic> node, List<String> path) {
     List<Widget> nodes = [];
-    tree.forEach((name, data) {
-      final bookPath = data['_book_path'] as String;
-      final children = data['children'] as Map<String, dynamic>;
-      final units = data['_units'] as Map<String, dynamic>;
+    node.forEach((key, value) {
+      if (key == '_type') return;
+      final fullPath = [...path, key].join('/');
+      
+      if (DataManager.isFile(value as Map<String, dynamic>)) {
+        final words = value;
+        nodes.add(
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              key: PageStorageKey(fullPath),
+              initiallyExpanded: AppState.instance.browserExpandedPaths.contains(fullPath),
+              onExpansionChanged: (val) {
+                if (val) AppState.instance.browserExpandedPaths.add(fullPath);
+                else AppState.instance.browserExpandedPaths.remove(fullPath);
+              },
+              title: Text(key, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
+              leading: const Icon(Icons.description, color: Colors.purpleAccent),
+              trailing: IconButton(
+                icon: const Icon(Icons.info, color: Colors.yellow),
+                onPressed: () {
+                  Set<String> uWordSet = words.entries.where((e) => e.key != '_type').map((e) => (e.value['单词'] ?? '').toString()).toSet();
+                  _showFolderStats("单词集: $key", uWordSet);
+                },
+              ),
+              children: words.entries.where((e) => e.key != '_type').map((e) {
+                final meta = e.value as Map<String, dynamic>;
+                final wordTxt = meta['单词'] ?? '';
+                final st = _myStats[wordTxt] ?? {};
+                final totalC = st['total'] ?? 0;
+                final wrongC = st['wrong'] ?? 0;
 
-      nodes.add(
-        Theme(
-          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-          child: ExpansionTile(
-            key: PageStorageKey(bookPath),
-            initiallyExpanded: AppState.instance.browserExpandedPaths.contains(bookPath),
-            onExpansionChanged: (val) {
-              if (val) AppState.instance.browserExpandedPaths.add(bookPath);
-              else AppState.instance.browserExpandedPaths.remove(bookPath);
-            },
-            title: Text(name, style: const TextStyle(color: Colors.white)),
-            leading: const Icon(Icons.folder, color: Colors.white),
-            trailing: IconButton(
-              icon: const Icon(Icons.info, color: Colors.yellow),
-              onPressed: () => _showFolderStats("目录聚合: $bookPath", _getAllWordsInNode({name: data})),
+                return ListTile(
+                  contentPadding: const EdgeInsets.only(left: 48, right: 16),
+                  title: Text(wordTxt, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold)),
+                  subtitle: totalC > 0
+                      ? Text("测\${totalC}次 · 错\${wrongC}次", style: TextStyle(color: wrongC > 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 12))
+                      : const Text('未测试', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.info, color: Colors.blueAccent),
+                    onPressed: () => _showWordStats(wordTxt),
+                  ),
+                );
+              }).toList(),
             ),
-            children: [
-              if (children.isNotEmpty)
+          )
+        );
+      } else {
+        nodes.add(
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              key: PageStorageKey(fullPath),
+              initiallyExpanded: AppState.instance.browserExpandedPaths.contains(fullPath),
+              onExpansionChanged: (val) {
+                if (val) AppState.instance.browserExpandedPaths.add(fullPath);
+                else AppState.instance.browserExpandedPaths.remove(fullPath);
+              },
+              title: Text(key, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
+              leading: const Icon(Icons.folder, color: Colors.amber),
+              trailing: IconButton(
+                icon: const Icon(Icons.info, color: Colors.yellow),
+                onPressed: () {
+                  final allWords = DataManager.getAllWords(value as Map<String, dynamic>);
+                  _showFolderStats("目录聚合: $fullPath", allWords.map((w) => w['单词'].toString()).toSet());
+                },
+              ),
+              children: [
                 Padding(
                   padding: const EdgeInsets.only(left: 16.0),
-                  child: _buildTree(children),
-                ),
-              ...units.entries.map((uEntry) {
-                final unitName = uEntry.key;
-                final words = uEntry.value as Map<String, dynamic>;
-                final unitPath = "$bookPath:::$unitName";
-
-                return ExpansionTile(
-                  key: PageStorageKey(unitPath),
-                  initiallyExpanded: AppState.instance.browserExpandedPaths.contains(unitPath),
-                  onExpansionChanged: (val) {
-                    if (val) AppState.instance.browserExpandedPaths.add(unitPath);
-                    else AppState.instance.browserExpandedPaths.remove(unitPath);
-                  },
-                  title: Text(unitName, style: const TextStyle(color: Colors.white)),
-                  leading: const Icon(Icons.description, color: Colors.purpleAccent),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.info, color: Colors.yellow),
-                    onPressed: () {
-                      Set<String> uWordSet = words.values.map((m) => (m['单词'] ?? '').toString()).toSet();
-                      _showFolderStats("单词集: $unitName", uWordSet);
-                    },
-                  ),
-                  children: words.values.map((meta) {
-                    final wordTxt = meta['单词'] ?? '';
-                    final st = _myStats[wordTxt] ?? {};
-                    final totalC = st['total'] ?? 0;
-                    final wrongC = st['wrong'] ?? 0;
-
-                    return ListTile(
-                      contentPadding: const EdgeInsets.only(left: 48, right: 16),
-                      title: Text(wordTxt, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      subtitle: totalC > 0
-                          ? Text("测\${totalC}次 · 错\${wrongC}次", style: TextStyle(color: wrongC > 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 12))
-                          : const Text('未测试', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.info, color: Colors.blueAccent),
-                        onPressed: () => _showWordStats(wordTxt),
-                      ),
-                    );
-                  }).toList(),
-                );
-              }).toList()
-            ],
-          ),
-        ),
-      );
+                  child: _buildTree(value as Map<String, dynamic>, [...path, key]),
+                )
+              ],
+            ),
+          )
+        );
+      }
     });
-
     return Column(children: nodes);
   }
 

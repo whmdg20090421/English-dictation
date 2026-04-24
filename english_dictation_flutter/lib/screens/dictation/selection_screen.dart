@@ -36,29 +36,7 @@ class _SelectionScreenState extends State<SelectionScreen> {
       _vocab = AppState.instance.selectedWords;
     } else {
       // Otherwise load all words
-      List<Map<String, dynamic>> allWords = [];
-      for (var b in DataManager.instance.vocab.values) {
-        for (var u in (b as Map<String, dynamic>).values) {
-          for (var entry in (u as Map<String, dynamic>).entries) {
-            final meta = Map<String, dynamic>.from(entry.value);
-            meta['_uid'] = entry.key;
-            meta['word'] = meta['单词'];
-            // Attempt to find a translation if not explicitly set
-            if (!meta.containsKey('translation')) {
-              // Usually the first key that is not metadata is the pos/translation
-              for (var k in meta.keys) {
-                if (!["单词", "word", "_uid", "source_book", "_ask_pos", "_test_mode"].contains(k)) {
-                  meta['translation'] = meta[k];
-                  meta['_ask_pos'] = k;
-                  break;
-                }
-              }
-            }
-            allWords.add(meta);
-          }
-        }
-      }
-      _vocab = allWords;
+      _vocab = DataManager.getAllWords(DataManager.instance.vocab);
     }
 
     setState(() {

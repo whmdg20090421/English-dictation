@@ -214,13 +214,97 @@ class DataManager {
     (s["history"] as List).add({"time": timeStr, "result": isCorrect ? "对" : "错"});
   }
 
-  Future<void> cleanEmptyNodes(String book, String unit) async {
-    if (vocab[book] != null && (vocab[book] as Map)[unit] == null) {
-      (vocab[book] as Map).remove(unit);
+  static bool isFolder(Map<String, dynamic> node) {
+    if (node.containsKey('_type') && node['_type'] == 'folder') return true;
+    if (node.containsKey('_type') && node['_type'] == 'file') return false;
+    
+    // If no type specified, guess: a file contains word items. 
+    // Word items are maps containing "单词"
+    if (node.isNotEmpty) {
+      final firstVal = node.values.first;
+      if (firstVal is Map && firstVal.containsKey('单词')) {
+        return false; // It's a file
+      }
+      return true; // It's a folder
     }
-    if (vocab[book] == null || (vocab[book] as Map).isEmpty) {
-      vocab.remove(book);
+    return true; // Default empty node to folder unless explicitly file
+  }
+
+  static bool isFile(Map<String, dynamic> node) {
+    if (node.containsKey('_type') && node['_type'] == 'file') return true;
+    if (node.containsKey('_type') && node['_type'] == 'folder') return false;
+    
+    if (node.isNotEmpty) {
+      final firstVal = node.values.first;
+      if (firstVal is Map && firstVal.containsKey('单词')) {
+        return true;
+      }
     }
-    await saveData();
+    return false;
+  }
+
+  static List<Map<String, dynamic>> getAllWords(Map<String, dynamic> root) {
+    List<Map<String, dynamic>> allWords = [];
+    void traverse(Map<String, dynamic> node) {
+      if (isFile(node)) {
+        node.forEach((key, value) {
+          if (key != '_type' && value is Map && value.containsKey('单词')) {
+            final meta = Map<String, dynamic>.from(value);
+            meta['_uid'] = key;
+            meta['word'] = meta['单词'];
+            if (!meta.containsKey('translation')) {
+              for (var k in meta.keys) {
+                if (!["单词", "word", "_uid", "source_book", "_ask_pos", "_test_mode"].contains(k)) {
+                  meta['translation'] = meta[k];
+                  meta['_ask_pos'] = k;
+                  break;
+                }
+              }
+            }
+            allWords.add(meta);
+          }
+        });
+      } else {
+        node.forEach((key, value) {
+          if (key != '_type' && value is Map<String, dynamic>) {
+            traverse(value);
+          } else if (key != '_type' && value is Map) {
+             traverse(Map<String, dynamic>.from(value));
+          }
+        });
+      }
+    }
+    traverse(root);
+    return allWords;
+  }
+
+  Future<void> cleanEmptyNodes(List<String> path) async {
+    // Recursively removes empty nodes backwards up the path
+    bool removedAny = false;
+    for (int i = path.length; i > 0; i--) {
+      Map<String, dynamic> curr = vocab;
+      for (int j = 0; j < i - 1; j++) {
+        if (curr[path[j]] is Map) {
+          curr = curr[path[j]] as Map<String, dynamic>;
+        } else {
+          return;
+        }
+      }
+      final keyToRemove = path[i - 1];
+      if (curr[keyToRemove] is Map) {
+        final node = curr[keyToRemove] as Map<String, dynamic>;
+        // Keep _type but if no other keys, it's empty
+        bool isEmpty = node.keys.where((k) => k != '_type').isEmpty;
+        if (isEmpty) {
+          curr.remove(keyToRemove);
+          removedAny = true;
+        } else {
+          break; // Stop if we hit a non-empty node
+        }
+      }
+    }
+    if (removedAny) {
+      await saveData();
+    }
   }
 }

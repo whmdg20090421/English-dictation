@@ -121,13 +121,48 @@ class _WordsTabState extends State<_WordsTab> {
     );
   }
 
-  void _showWordDialog(String book, String unit, {String? wordId, Map<String, dynamic>? initialData}) {
+  void _showNewNodeDialog(List<String> path, bool isFile) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isFile ? '新建单元(文件)' : '新建子文件夹'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: '输入名称'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          ElevatedButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isNotEmpty) {
+                setState(() {
+                  Map<String, dynamic> curr = DataManager.instance.vocab;
+                  for (var p in path) {
+                    curr[p] ??= {};
+                    curr = curr[p] as Map<String, dynamic>;
+                  }
+                  curr[text] = {'_type': isFile ? 'file' : 'folder'};
+                });
+                DataManager.instance.saveData();
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('确认'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showWordDialog(List<String> path, {String? wordId, Map<String, dynamic>? initialData}) {
     final wordController = TextEditingController(text: initialData?['单词'] ?? '');
     final posControllers = <PosController>[];
 
     if (initialData != null) {
       initialData.forEach((key, value) {
-        if (key != '单词' && key != '_uid' && key != 'source_book' && key != '_ask_pos' && key != '_test_mode') {
+        if (key != '单词' && key != '_uid' && key != 'source_book' && key != '_ask_pos' && key != '_test_mode' && key != '_type') {
           final pc = PosController();
           pc.pos.text = key;
           pc.meaning.text = value.toString();
@@ -181,9 +216,11 @@ class _WordsTabState extends State<_WordsTab> {
                     final text = wordController.text.trim();
                     if (text.isEmpty) return;
 
-                    final vocab = DataManager.instance.vocab;
-                    vocab[book] ??= {};
-                    (vocab[book] as Map)[unit] ??= {};
+                    Map<String, dynamic> curr = DataManager.instance.vocab;
+                    for (var p in path) {
+                      curr[p] ??= {};
+                      curr = curr[p] as Map<String, dynamic>;
+                    }
                     
                     final wId = wordId ?? 'word_${DateTime.now().millisecondsSinceEpoch}';
                     
@@ -194,7 +231,7 @@ class _WordsTabState extends State<_WordsTab> {
                       }
                     }
 
-                    (vocab[book][unit] as Map)[wId] = newWordData;
+                    curr[wId] = newWordData;
                     DataManager.instance.saveData();
                     setState(() {});
                     Navigator.pop(context);
@@ -207,6 +244,94 @@ class _WordsTabState extends State<_WordsTab> {
         );
       },
     );
+  }
+
+  Widget _buildVocabTree(Map<String, dynamic> node, List<String> path) {
+    if (DataManager.isFile(node)) {
+      // It's a file, list words inside
+      final words = node.entries.where((e) => e.key != '_type').toList();
+      return ExpansionTile(
+        initiallyExpanded: true,
+        leading: const Icon(Icons.description, color: Colors.blueAccent),
+        title: Text('${path.last} (${words.length} 词)', style: const TextStyle(fontWeight: FontWeight.bold)),
+        children: [
+          ...words.map((wordEntry) {
+            return ListTile(
+              contentPadding: const EdgeInsets.only(left: 40, right: 16),
+              title: Text(wordEntry.value['单词'] ?? ''),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!_isEditMode)
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.blue),
+                      onPressed: () => _showWordDialog(path, wordId: wordEntry.key, initialData: wordEntry.value),
+                    ),
+                  if (_isEditMode)
+                    IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () {
+                      setState(() {
+                        node.remove(wordEntry.key);
+                      });
+                      DataManager.instance.cleanEmptyNodes([...path, wordEntry.key]);
+                    }),
+                ],
+              ),
+            );
+          }),
+          if (!_isEditMode)
+            ListTile(
+              contentPadding: const EdgeInsets.only(left: 40),
+              leading: const Icon(Icons.add, color: Colors.green),
+              title: const Text('新增单词', style: TextStyle(color: Colors.green)),
+              onTap: () => _showWordDialog(path),
+            ),
+        ],
+      );
+    } else {
+      // It's a folder, list children
+      final children = node.entries.where((e) => e.key != '_type').toList();
+      return ExpansionTile(
+        leading: const Icon(Icons.folder, color: Colors.amber),
+        title: Text(path.isEmpty ? 'Root' : path.last, style: const TextStyle(fontWeight: FontWeight.bold)),
+        children: [
+          ...children.map((childEntry) {
+            return Padding(
+              padding: const EdgeInsets.only(left: 16.0),
+              child: Row(
+                children: [
+                  Expanded(child: _buildVocabTree(childEntry.value as Map<String, dynamic>, [...path, childEntry.key])),
+                  if (_isEditMode)
+                    IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () {
+                      setState(() {
+                        node.remove(childEntry.key);
+                      });
+                      DataManager.instance.cleanEmptyNodes([...path, childEntry.key]);
+                    }),
+                ],
+              ),
+            );
+          }),
+          if (!_isEditMode)
+            Padding(
+              padding: const EdgeInsets.only(left: 32.0),
+              child: Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _showNewNodeDialog(path, false),
+                    icon: const Icon(Icons.create_new_folder, color: Colors.amber),
+                    label: const Text('新建子文件夹', style: TextStyle(color: Colors.amber)),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _showNewNodeDialog(path, true),
+                    icon: const Icon(Icons.note_add, color: Colors.blueAccent),
+                    label: const Text('新建单元(文件)', style: TextStyle(color: Colors.blueAccent)),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
+    }
   }
 
   @override
@@ -243,39 +368,21 @@ class _WordsTabState extends State<_WordsTab> {
         if (vocab.isNotEmpty)
           Expanded(
             child: ListView(
-              children: vocab.entries.map((bookEntry) {
-                return ExpansionTile(
-                  leading: const Icon(Icons.folder),
-                  title: Text(bookEntry.key),
-                  children: (bookEntry.value as Map<String, dynamic>).entries.map((unitEntry) {
-                    return ExpansionTile(
-                      leading: const Icon(Icons.description),
-                      title: Text('${unitEntry.key} (${(unitEntry.value as Map).length} 词)'),
-                      children: (unitEntry.value as Map<String, dynamic>).entries.map((wordEntry) {
-                        return ListTile(
-                          title: Text(wordEntry.value['单词'] ?? ''),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (!_isEditMode)
-                                IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.blue),
-                                  onPressed: () => _showWordDialog(bookEntry.key, unitEntry.key, wordId: wordEntry.key, initialData: wordEntry.value),
-                                ),
-                              if (_isEditMode) ...[
-                                IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () {
-                                  setState(() {
-                                    (vocab[bookEntry.key][unitEntry.key] as Map).remove(wordEntry.key);
-                                  });
-                                  DataManager.instance.cleanEmptyNodes(bookEntry.key, unitEntry.key);
-                                }),
-                              ]
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  }).toList(),
+              children: vocab.entries.where((e) => e.key != '_type').map((entry) {
+                return Row(
+                  children: [
+                    Expanded(child: _buildVocabTree(entry.value as Map<String, dynamic>, [entry.key])),
+                    if (_isEditMode)
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () {
+                          setState(() {
+                            vocab.remove(entry.key);
+                          });
+                          DataManager.instance.cleanEmptyNodes([entry.key]);
+                        }
+                      ),
+                  ],
                 );
               }).toList(),
             ),
@@ -378,22 +485,27 @@ class _ImportExportTabState extends State<_ImportExportTab> {
     );
   }
 
-  void _mergeMultiUnit(Map<String, dynamic> data) {
-    final vocab = DataManager.instance.vocab;
-    data.forEach((book, units) {
-      vocab[book] ??= {};
-      if (units is Map) {
-        units.forEach((unit, words) {
-          (vocab[book] as Map)[unit] ??= {};
-          if (words is Map) {
-            (vocab[book][unit] as Map).addAll(words);
-          }
-        });
+  void _deepMerge(Map<String, dynamic> target, Map<String, dynamic> source) {
+    source.forEach((key, value) {
+      if (value is Map<String, dynamic>) {
+        if (!target.containsKey(key)) {
+          target[key] = value;
+        } else if (target[key] is Map<String, dynamic>) {
+          _deepMerge(target[key] as Map<String, dynamic>, value);
+        } else {
+          target[key] = value; // Overwrite
+        }
+      } else {
+        target[key] = value;
       }
     });
+  }
+
+  void _mergeMultiUnit(Map<String, dynamic> data) {
+    _deepMerge(DataManager.instance.vocab, data);
     DataManager.instance.saveData();
     textController.clear();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('导入成功')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('合并成功')));
   }
 
   void _downloadBackup() async {
