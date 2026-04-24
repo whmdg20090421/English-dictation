@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:provider/provider.dart';
+import '../providers/dictation_provider.dart';
+import 'dictation/results_screen.dart';
 
 class VideoDictationScreen extends StatefulWidget {
   final String videoUrl;
@@ -14,6 +17,7 @@ class VideoDictationScreen extends StatefulWidget {
 class _VideoDictationScreenState extends State<VideoDictationScreen> {
   late VideoPlayerController _controller;
   bool _isSubtitlesHidden = true;
+  final TextEditingController _textController = TextEditingController();
 
   @override
   void initState() {
@@ -29,14 +33,55 @@ class _VideoDictationScreenState extends State<VideoDictationScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _textController.dispose();
     super.dispose();
+  }
+
+  void _submit() {
+    final provider = Provider.of<DictationProvider>(context, listen: false);
+    if (provider.isSubmitting) return;
+    if (provider.testQueue.isEmpty) return;
+
+    provider.isSubmitting = true;
+    final ans = _textController.text.trim();
+    final meta = provider.testQueue[provider.currentQIndex];
+    final target = meta['word'] as String? ?? "";
+
+    final isCorrect = ans.toLowerCase() == target.toLowerCase();
+
+    provider.recordAnswerAndNext(
+      isCorrect,
+      'video_dictation',
+      target,
+      ans,
+      !isCorrect,
+      [target],
+      isCorrect ? 1.0 : 0.0
+    );
+
+    provider.isSubmitting = false;
+    _textController.clear();
+
+    if (provider.userAnswers.length >= provider.testQueue.length) {
+      provider.submitTest();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ResultsScreen()),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Video Dictation"),
+        title: Consumer<DictationProvider>(
+          builder: (context, provider, child) {
+            final qNum = provider.testQueue.isEmpty ? 0 : provider.currentQIndex + 1;
+            final total = provider.testQueue.length;
+            return Text("Video Dictation ($qNum/$total)");
+          },
+        ),
         actions: [
           IconButton(
             icon: Icon(_isSubtitlesHidden ? Icons.subtitles_off : Icons.subtitles),
@@ -118,20 +163,22 @@ class _VideoDictationScreenState extends State<VideoDictationScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
-                  const Expanded(
+                  Expanded(
                     child: TextField(
+                      controller: _textController,
                       maxLines: null,
                       expands: true,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                         hintText: "Enter your dictation here...",
                       ),
+                      onSubmitted: (_) => _submit(),
                     ),
                   ),
                   const SizedBox(height: 10),
                   ElevatedButton(
-                    onPressed: null,
-                    child: const Text("Submit (未实现)"),
+                    onPressed: _submit,
+                    child: const Text("Submit"),
                   )
                 ],
               ),

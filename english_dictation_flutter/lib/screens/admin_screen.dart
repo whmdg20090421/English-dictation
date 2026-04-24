@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import '../db/data_manager.dart';
+import '../app_state.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -69,6 +73,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   }
 }
 
+class PosController {
+  TextEditingController pos = TextEditingController();
+  TextEditingController meaning = TextEditingController();
+}
+
 // 单词管理 Tab (全局书单与词库)
 class _WordsTab extends StatefulWidget {
   const _WordsTab();
@@ -79,15 +88,6 @@ class _WordsTab extends StatefulWidget {
 
 class _WordsTabState extends State<_WordsTab> {
   bool _isEditMode = false;
-  
-  // 模拟的词库结构，用于匹配 Python 版本的树形结构
-  final Map<String, dynamic> _vocab = {
-    '小学/五年级/下册': {
-      'Unit 1': {
-        'word_01': {'单词': 'eat breakfast', 'v.': '吃早饭'},
-      }
-    }
-  };
 
   void _showNewFolderDialog() {
     final controller = TextEditingController();
@@ -103,9 +103,13 @@ class _WordsTabState extends State<_WordsTab> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
           ElevatedButton(
             onPressed: () {
-              setState(() {
-                _vocab[controller.text.trim()] = {};
-              });
+              final text = controller.text.trim();
+              if (text.isNotEmpty) {
+                setState(() {
+                  DataManager.instance.vocab[text] = {};
+                });
+                DataManager.instance.saveData();
+              }
               Navigator.pop(context);
             },
             child: const Text('确认'),
@@ -117,7 +121,18 @@ class _WordsTabState extends State<_WordsTab> {
 
   void _showWordDialog(String book, String unit, {String? wordId, Map<String, dynamic>? initialData}) {
     final wordController = TextEditingController(text: initialData?['单词'] ?? '');
-    final posWidgets = <Widget>[];
+    final posControllers = <PosController>[];
+
+    if (initialData != null) {
+      initialData.forEach((key, value) {
+        if (key != '单词' && key != '_uid' && key != 'source_book' && key != '_ask_pos' && key != '_test_mode') {
+          final pc = PosController();
+          pc.pos.text = key;
+          pc.meaning.text = value.toString();
+          posControllers.add(pc);
+        }
+      });
+    }
 
     showDialog(
       context: context,
@@ -135,19 +150,17 @@ class _WordsTabState extends State<_WordsTab> {
                       decoration: const InputDecoration(labelText: '英文拼写'),
                     ),
                     const SizedBox(height: 10),
-                    ...posWidgets,
+                    ...posControllers.map((pc) => Row(
+                      children: [
+                        Expanded(child: TextField(controller: pc.pos, decoration: const InputDecoration(labelText: '词性/短语(n.)'))),
+                        const SizedBox(width: 8),
+                        Expanded(child: TextField(controller: pc.meaning, decoration: const InputDecoration(labelText: '释义'))),
+                      ],
+                    )),
                     TextButton(
                       onPressed: () {
                         setStateDialog(() {
-                          posWidgets.add(
-                            Row(
-                              children: [
-                                Expanded(child: TextField(decoration: const InputDecoration(labelText: '词性/短语(n.)'))),
-                                const SizedBox(width: 8),
-                                Expanded(child: TextField(decoration: const InputDecoration(labelText: '释义'))),
-                              ],
-                            )
-                          );
+                          posControllers.add(PosController());
                         });
                       },
                       child: const Text('+ 添加考点词性'),
@@ -162,8 +175,29 @@ class _WordsTabState extends State<_WordsTab> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  onPressed: null,
-                  child: const Text('保存 (未实现)'),
+                  onPressed: () {
+                    final text = wordController.text.trim();
+                    if (text.isEmpty) return;
+
+                    final vocab = DataManager.instance.vocab;
+                    vocab[book] ??= {};
+                    (vocab[book] as Map)[unit] ??= {};
+                    
+                    final wId = wordId ?? 'word_${DateTime.now().millisecondsSinceEpoch}';
+                    
+                    Map<String, dynamic> newWordData = {'单词': text};
+                    for (var pc in posControllers) {
+                      if (pc.pos.text.isNotEmpty && pc.meaning.text.isNotEmpty) {
+                        newWordData[pc.pos.text.trim()] = pc.meaning.text.trim();
+                      }
+                    }
+
+                    (vocab[book][unit] as Map)[wId] = newWordData;
+                    DataManager.instance.saveData();
+                    setState(() {});
+                    Navigator.pop(context);
+                  },
+                  child: const Text('保存'),
                 ),
               ],
             );
@@ -175,6 +209,7 @@ class _WordsTabState extends State<_WordsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final vocab = DataManager.instance.vocab;
     return Column(
       children: [
         Padding(
@@ -201,12 +236,12 @@ class _WordsTabState extends State<_WordsTab> {
             ],
           ),
         ),
-        if (_vocab.isEmpty)
+        if (vocab.isEmpty)
           const Expanded(child: Center(child: Text('词库为空，请先新建根文件夹', style: TextStyle(color: Colors.grey)))),
-        if (_vocab.isNotEmpty)
+        if (vocab.isNotEmpty)
           Expanded(
             child: ListView(
-              children: _vocab.entries.map((bookEntry) {
+              children: vocab.entries.map((bookEntry) {
                 return ExpansionTile(
                   leading: const Icon(Icons.folder),
                   title: Text(bookEntry.key),
@@ -226,9 +261,12 @@ class _WordsTabState extends State<_WordsTab> {
                                   onPressed: () => _showWordDialog(bookEntry.key, unitEntry.key, wordId: wordEntry.key, initialData: wordEntry.value),
                                 ),
                               if (_isEditMode) ...[
-                                // IconButton(icon: const Icon(Icons.arrow_upward), onPressed: () {}),
-                                // IconButton(icon: const Icon(Icons.arrow_downward), onPressed: () {}),
-                                // IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () {}),
+                                IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () {
+                                  setState(() {
+                                    (vocab[bookEntry.key][unitEntry.key] as Map).remove(wordEntry.key);
+                                  });
+                                  DataManager.instance.cleanEmptyNodes(bookEntry.key, unitEntry.key);
+                                }),
                               ]
                             ],
                           ),
@@ -246,18 +284,124 @@ class _WordsTabState extends State<_WordsTab> {
 }
 
 // 导入与导出 Tab
-class _ImportExportTab extends StatelessWidget {
+class _ImportExportTab extends StatefulWidget {
   const _ImportExportTab();
+
+  @override
+  State<_ImportExportTab> createState() => _ImportExportTabState();
+}
+
+class _ImportExportTabState extends State<_ImportExportTab> {
+  final TextEditingController textController = TextEditingController();
 
   void _safeCopy(BuildContext context, String text, String title) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('已尝试复制: $title')));
   }
 
+  void _importData() {
+    try {
+      final jsonStr = textController.text;
+      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+      
+      bool isSingleUnit = false;
+      if (data.values.isNotEmpty) {
+        final firstVal = data.values.first;
+        if (firstVal is Map && firstVal.containsKey('单词')) {
+          isSingleUnit = true;
+        }
+      }
+
+      if (isSingleUnit) {
+        _showSingleUnitImportDialog(data);
+      } else {
+        _mergeMultiUnit(data);
+      }
+    } catch(e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导入失败: 格式错误')));
+    }
+  }
+
+  void _showSingleUnitImportDialog(Map<String, dynamic> data) {
+    final bookController = TextEditingController();
+    final unitController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('导入单单元'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: bookController, decoration: const InputDecoration(labelText: '书单名称')),
+            TextField(controller: unitController, decoration: const InputDecoration(labelText: '单元名称')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          ElevatedButton(
+            onPressed: () {
+              final book = bookController.text.trim();
+              final unit = unitController.text.trim();
+              if (book.isEmpty || unit.isEmpty) return;
+              final vocab = DataManager.instance.vocab;
+              vocab[book] ??= {};
+              (vocab[book] as Map)[unit] ??= {};
+              (vocab[book][unit] as Map).addAll(data);
+              DataManager.instance.saveData();
+              Navigator.pop(context);
+              textController.clear();
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('导入成功')));
+            },
+            child: const Text('导入'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _mergeMultiUnit(Map<String, dynamic> data) {
+    final vocab = DataManager.instance.vocab;
+    data.forEach((book, units) {
+      vocab[book] ??= {};
+      if (units is Map) {
+        units.forEach((unit, words) {
+          (vocab[book] as Map)[unit] ??= {};
+          if (words is Map) {
+            (vocab[book][unit] as Map).addAll(words);
+          }
+        });
+      }
+    });
+    DataManager.instance.saveData();
+    textController.clear();
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('导入成功')));
+  }
+
+  void _downloadBackup() async {
+    final data = {
+      'vocab': DataManager.instance.vocab,
+      'accounts': DataManager.instance.accounts,
+      'global_settings': DataManager.instance.globalSettings,
+    };
+    final jsonStr = jsonEncode(data);
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('\${dir.path}/backup.json');
+      await file.writeAsString(jsonStr);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('备份已保存至: \${file.path}')));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('备份失败: \$e')));
+    }
+  }
+
+  void _copyVocabCode() {
+    final jsonStr = jsonEncode(DataManager.instance.vocab);
+    Clipboard.setData(ClipboardData(text: jsonStr));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('词库代码已复制')));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final textController = TextEditingController();
-
     const aiPromptSingle = """请帮我把以下内容（文本或图片）转换为严格的 JSON 格式，方便我导入听写系统。
 【结构要求：单单元扁平模式】
 1. 必须是单层扁平化结构：外层键名为"唯一的单词ID"（如word_01），值为该单词的属性字典。
@@ -294,17 +438,10 @@ class _ImportExportTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          // const Text('指定导入目标 (书册或单词集)', style: TextStyle(color: Colors.amber, fontSize: 16)),
-          // ElevatedButton(
-          //   style: ElevatedButton.styleFrom(alignment: Alignment.centerLeft, backgroundColor: Colors.blue.withOpacity(0.5)),
-          //   onPressed: null, // () {},
-          //   child: const Text('导入位置: / (根目录)'),
-          // ),
-          // const SizedBox(height: 8),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: const EdgeInsets.symmetric(vertical: 12)),
-            onPressed: null, // () {},
-            child: const Text('智能校验并导入 (未实现)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            onPressed: _importData,
+            child: const Text('智能校验并导入', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ),
           const SizedBox(height: 24),
           const Text('获取 AI 格式化提示词', style: TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold, fontSize: 18)),
@@ -338,18 +475,18 @@ class _ImportExportTab extends StatelessWidget {
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
-                  onPressed: null, // () {},
+                  onPressed: _downloadBackup,
                   icon: const Icon(Icons.download),
-                  label: const Text('下载完整备份 (未实现)'),
+                  label: const Text('下载完整备份'),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
-                  onPressed: null, // () {},
+                  onPressed: _copyVocabCode,
                   icon: const Icon(Icons.content_copy),
-                  label: const Text('复制词库代码 (未实现)'),
+                  label: const Text('复制词库代码'),
                 ),
               ),
             ],
@@ -377,6 +514,122 @@ class _SettingsTabState extends State<_SettingsTab> {
   int _hintDelay = 5;
   int _hintLimit = 0;
 
+  bool _isPasswordVisibleOld = false;
+  bool _isPasswordVisibleNew = false;
+  bool _isEncrypted = true;
+
+  final TextEditingController _oldPassController = TextEditingController();
+  final TextEditingController _newPassController = TextEditingController();
+  final TextEditingController _perQTimeController = TextEditingController();
+  final TextEditingController _hintDelayController = TextEditingController();
+  final TextEditingController _hintLimitController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    _oldPassController.dispose();
+    _newPassController.dispose();
+    _perQTimeController.dispose();
+    _hintDelayController.dispose();
+    _hintLimitController.dispose();
+    super.dispose();
+  }
+
+  void _loadSettings() {
+    final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
+    final settings = currentAcc['settings'] ?? {};
+    _hideConfig = settings['hide_test_config'] ?? false;
+    _allowBackward = settings['allow_backward'] ?? true;
+    _allowHint = settings['allow_hint'] ?? false;
+    _timerLock = settings['timer_lock'] ?? true;
+    _perQTime = (settings['per_q_time'] ?? 20.0).toDouble();
+    _hintDelay = settings['hint_delay'] ?? 5;
+    _hintLimit = settings['hint_limit'] ?? 0;
+    
+    _isEncrypted = DataManager.instance.globalSettings['is_encrypted'] ?? true;
+
+    _perQTimeController.text = _perQTime.toString();
+    _hintDelayController.text = _hintDelay.toString();
+    _hintLimitController.text = _hintLimit.toString();
+  }
+
+  void _saveSettings() {
+    final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
+    currentAcc['settings'] = {
+      'hide_test_config': _hideConfig,
+      'allow_backward': _allowBackward,
+      'allow_hint': _allowHint,
+      'timer_lock': _timerLock,
+      'per_q_time': double.tryParse(_perQTimeController.text) ?? 20.0,
+      'hint_delay': int.tryParse(_hintDelayController.text) ?? 5,
+      'hint_limit': int.tryParse(_hintLimitController.text) ?? 0,
+      'folders': currentAcc['settings']?['folders'] ?? [],
+    };
+    DataManager.instance.globalSettings['is_encrypted'] = _isEncrypted;
+    DataManager.instance.saveData();
+  }
+
+  void _clearStatsAndHistory() {
+    final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
+    currentAcc['stats'] = {};
+    currentAcc['history'] = [];
+    DataManager.instance.saveData();
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已清空统计与历史记录')));
+  }
+
+  void _clearMistakes() {
+    final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
+    currentAcc['mistakes'] = [];
+    DataManager.instance.saveData();
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已清空错题本记录')));
+  }
+
+  void _eraseAllData() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('危险操作'),
+        content: const Text('确定要抹除所有数据吗？此操作不可逆！'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              DataManager.instance.vocab.clear();
+              DataManager.instance.accounts.clear();
+              DataManager.instance.globalSettings.clear();
+              DataManager.instance.saveData();
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('所有数据已抹除')));
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _changePassword() {
+    final oldPass = _oldPassController.text;
+    final newPass = _newPassController.text;
+    final currentPass = DataManager.instance.globalSettings['admin_password'] ?? '';
+    
+    if (oldPass == currentPass || currentPass.isEmpty) {
+      DataManager.instance.globalSettings['admin_password'] = newPass;
+      DataManager.instance.saveData();
+      _oldPassController.clear();
+      _newPassController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('密码修改成功')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('旧密码错误')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -389,24 +642,27 @@ class _SettingsTabState extends State<_SettingsTab> {
             padding: const EdgeInsets.all(12.0),
             child: Column(
               children: [
-                SwitchListTile(title: const Text('隐藏听写前配置界面 (直接使用默认)'), value: _hideConfig, onChanged: (v) => setState(() => _hideConfig = v)),
-                SwitchListTile(title: const Text('允许倒退与修改'), value: _allowBackward, onChanged: (v) => setState(() => _allowBackward = v)),
-                SwitchListTile(title: const Text('开启首字母提示'), value: _allowHint, onChanged: (v) => setState(() => _allowHint = v)),
-                SwitchListTile(title: const Text('限时关联计算锁 (时间到强制跳题)'), value: _timerLock, onChanged: (v) => setState(() => _timerLock = v)),
+                SwitchListTile(title: const Text('隐藏听写前配置界面 (直接使用默认)'), value: _hideConfig, onChanged: (v) { setState(() => _hideConfig = v); _saveSettings(); }),
+                SwitchListTile(title: const Text('允许倒退与修改'), value: _allowBackward, onChanged: (v) { setState(() => _allowBackward = v); _saveSettings(); }),
+                SwitchListTile(title: const Text('开启首字母提示'), value: _allowHint, onChanged: (v) { setState(() => _allowHint = v); _saveSettings(); }),
+                SwitchListTile(title: const Text('限时关联计算锁 (时间到强制跳题)'), value: _timerLock, onChanged: (v) { setState(() => _timerLock = v); _saveSettings(); }),
                 TextField(
                   decoration: const InputDecoration(labelText: '默认单题限时 (秒)'),
                   keyboardType: TextInputType.number,
-                  controller: TextEditingController(text: _perQTime.toString()),
+                  controller: _perQTimeController,
+                  onChanged: (v) { _saveSettings(); },
                 ),
                 TextField(
                   decoration: const InputDecoration(labelText: '提示亮起延迟 (秒)'),
                   keyboardType: TextInputType.number,
-                  controller: TextEditingController(text: _hintDelay.toString()),
+                  controller: _hintDelayController,
+                  onChanged: (v) { _saveSettings(); },
                 ),
                 TextField(
                   decoration: const InputDecoration(labelText: '每局最大提示次数 (0为无限)'),
                   keyboardType: TextInputType.number,
-                  controller: TextEditingController(text: _hintLimit.toString()),
+                  controller: _hintLimitController,
+                  onChanged: (v) { _saveSettings(); },
                 ),
               ],
             ),
@@ -416,16 +672,16 @@ class _SettingsTabState extends State<_SettingsTab> {
         const Text('[当前账户] 数据清理区', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.redAccent)),
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(backgroundColor: Colors.red[800]),
-          onPressed: null, // () {},
+          onPressed: _clearStatsAndHistory,
           icon: const Icon(Icons.delete_sweep),
-          label: const Text('清空所有统计与历史记录 (未实现)'),
+          label: const Text('清空所有统计与历史记录'),
         ),
         const SizedBox(height: 8),
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(backgroundColor: Colors.red[600]),
-          onPressed: null, // () {},
+          onPressed: _clearMistakes,
           icon: const Icon(Icons.playlist_remove),
-          label: const Text('仅清空错题本记录 (未实现)'),
+          label: const Text('仅清空错题本记录'),
         ),
         const SizedBox(height: 16),
         const Text('全局安全控制与密码管理', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber)),
@@ -437,9 +693,12 @@ class _SettingsTabState extends State<_SettingsTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('高强度密码加密隔离', style: TextStyle(fontWeight: FontWeight.bold)),
-                const Text('当前状态：🔒 已加密隐藏 (安全)', style: TextStyle(color: Colors.amber)),
+                Text(_isEncrypted ? '当前状态：🔒 已加密隐藏 (安全)' : '当前状态：🔓 明文显示 (不安全)', style: TextStyle(color: _isEncrypted ? Colors.amber : Colors.red)),
                 const SizedBox(height: 8),
-                ElevatedButton(onPressed: null, child: const Text('点击切换加密/明文状态 (未实现)')),
+                ElevatedButton(onPressed: () {
+                  setState(() { _isEncrypted = !_isEncrypted; });
+                  _saveSettings();
+                }, child: const Text('点击切换加密/明文状态')),
               ],
             ),
           ),
@@ -452,10 +711,30 @@ class _SettingsTabState extends State<_SettingsTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('修改系统管理员主密码', style: TextStyle(fontWeight: FontWeight.bold)),
-                const TextField(decoration: InputDecoration(labelText: '请输入当前旧密码'), obscureText: true),
-                const TextField(decoration: InputDecoration(labelText: '请输入新密码'), obscureText: true),
+                TextField(
+                  controller: _oldPassController,
+                  decoration: InputDecoration(
+                    labelText: '请输入当前旧密码',
+                    suffixIcon: IconButton(
+                      icon: Icon(_isPasswordVisibleOld ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () => setState(() => _isPasswordVisibleOld = !_isPasswordVisibleOld),
+                    ),
+                  ),
+                  obscureText: !_isPasswordVisibleOld,
+                ),
+                TextField(
+                  controller: _newPassController,
+                  decoration: InputDecoration(
+                    labelText: '请输入新密码',
+                    suffixIcon: IconButton(
+                      icon: Icon(_isPasswordVisibleNew ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () => setState(() => _isPasswordVisibleNew = !_isPasswordVisibleNew),
+                    ),
+                  ),
+                  obscureText: !_isPasswordVisibleNew,
+                ),
                 const SizedBox(height: 8),
-                ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: null, child: const Text('确认修改密码 (未实现)')),
+                ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: _changePassword, child: const Text('确认修改密码')),
               ],
             ),
           ),
@@ -464,9 +743,9 @@ class _SettingsTabState extends State<_SettingsTab> {
         const Text('全局危险操作核心区', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.redAccent)),
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(backgroundColor: Colors.red[900]),
-          onPressed: null,
+          onPressed: _eraseAllData,
           icon: const Icon(Icons.delete_forever),
-          label: const Text('抹除所有账户及词库数据 (未实现)'),
+          label: const Text('抹除所有账户及词库数据'),
         ),
       ],
     );
@@ -474,11 +753,27 @@ class _SettingsTabState extends State<_SettingsTab> {
 }
 
 // 个人听写明细 Tab
-class _LogsTab extends StatelessWidget {
+class _LogsTab extends StatefulWidget {
   const _LogsTab();
 
   @override
+  State<_LogsTab> createState() => _LogsTabState();
+}
+
+class _LogsTabState extends State<_LogsTab> {
+  void _clearLogs() {
+    final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
+    currentAcc['history'] = [];
+    DataManager.instance.saveData();
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('记录已清空')));
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
+    final history = (currentAcc['history'] as List?) ?? [];
+
     return Column(
       children: [
         Padding(
@@ -490,27 +785,33 @@ class _LogsTab extends StatelessWidget {
               const SizedBox(height: 8),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: null,
-                child: const Text('清空所有记录 (未实现)'),
+                onPressed: _clearLogs,
+                child: const Text('清空所有记录'),
               ),
             ],
           ),
         ),
         Expanded(
-          child: ListView.builder(
-            itemCount: 2, // mock count
-            itemBuilder: (context, index) {
-              return ExpansionTile(
-                title: Text('2024-04-22 10:00:00 (100分 - 混合模式 - 已完成)'),
-                subtitle: const Text('总得分点: 10.0/10 | 提示使用: 0次', style: TextStyle(color: Colors.grey)),
-                children: [
-                  ListTile(
-                    title: const Text('[spelling] apple -> apple (标答:[apple])', style: TextStyle(color: Colors.green)),
-                  ),
-                ],
-              );
-            },
-          ),
+          child: history.isEmpty
+            ? const Center(child: Text('暂无历史记录', style: TextStyle(color: Colors.grey)))
+            : ListView.builder(
+                itemCount: history.length,
+                itemBuilder: (context, index) {
+                  final log = history[index];
+                  final details = (log['details'] as List?) ?? [];
+                  return ExpansionTile(
+                    title: Text('\${log['time'] ?? '未知时间'} (\${log['score'] ?? 0}分 - \${log['mode'] ?? '未知模式'} - 已完成)'),
+                    subtitle: Text('总得分点: \${log['total_points'] ?? 0} | 提示使用: \${log['hints_used'] ?? 0}次', style: const TextStyle(color: Colors.grey)),
+                    children: details.map<Widget>((d) {
+                      final isCorrect = d['is_correct'] == true;
+                      return ListTile(
+                        title: Text('[\${d['type'] ?? '未知'}] \${d['word'] ?? ''} -> \${d['answer'] ?? ''} (标答:[\${d['correct_answer'] ?? ''}])', 
+                          style: TextStyle(color: isCorrect ? Colors.green : Colors.red)),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
         ),
       ],
     );
