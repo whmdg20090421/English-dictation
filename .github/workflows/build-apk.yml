@@ -34,10 +34,10 @@ jobs:
       - name: Decode Keystore
         working-directory: ./english_dictation_flutter/android/app
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 || secrets.KEYSTORE || secrets.BASE64_KEYSTORE || secrets.KEYSTORE_JKS }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_B64 }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "Error: KEYSTORE_BASE64 is empty. Please check your GitHub Secrets."
+            echo "Error: KEYSTORE_B64 is empty. Please check your GitHub Secrets."
             exit 1
           fi
           echo "$KEYSTORE_BASE64" | base64 --decode > upload-keystore.jks
@@ -47,9 +47,9 @@ jobs:
         working-directory: ./english_dictation_flutter
         env:
           KEYSTORE_PATH: upload-keystore.jks
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: flutter build apk --release --dart-define=ENCRYPTION_KEY=${{ secrets.KEY_PASSWORD }}
 
       - name: Rename APK
