@@ -24,10 +24,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadData() async {
     try {
-      await DataManager.instance.loadData();
+      await DataManager.instance.loadLocalDataOnly();
+      AppState.instance.init();
+      if (mounted) setState(() {});
+      
+      // Now sync with cloud in background
+      await DataManager.instance.syncWithCloud();
     } catch (e, stack) {
       debugPrint('Error in _loadData: $e\n$stack');
-      // If it fails to load, at least initialize a fallback state so the UI doesn't hang.
       if (DataManager.instance.accounts.isEmpty) {
         DataManager.instance.accounts['default'] = {
           "name": "默认账户",
@@ -46,10 +50,8 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         };
       }
-      // Rethrow so the global error handler can catch and log it
       rethrow;
     } finally {
-      AppState.instance.init();
       if (mounted) {
         setState(() {});
       }
@@ -322,9 +324,21 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     if (DataManager.instance.accounts.isEmpty) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: AppTheme.primaryDark,
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              CircularProgressIndicator(color: Colors.white),
+              SizedBox(height: 20),
+              Text(
+                '正在同步数据，请稍候...',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
       );
     }
 

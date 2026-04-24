@@ -36,53 +36,31 @@ class DataManager {
     ''');
   }
 
-  Future<void> loadData() async {
-    // Load local data first to see what we have
+  Future<void> loadLocalDataOnly() async {
     final db = await instance.database;
     final List<Map<String, dynamic>> maps = await db.query('Store');
 
-    Map<String, dynamic> localData = {};
-    for (var map in maps) {
-      localData[map['key'] as String] = jsonDecode(map['value'] as String);
-    }
-    final localVocab = localData['vocab'] ?? {};
-    final localAccounts = localData['accounts'] ?? {};
-    final localGlobalSettings = localData['global_settings'] ?? {};
+    Map<String, dynamic> localVocab = {};
+    Map<String, dynamic> localAccounts = {};
+    Map<String, dynamic> localGlobalSettings = {};
 
-    // Attempt to download from cloud first if password is set
-    final publicData = await CloudSyncService().downloadPublicData();
-    bool isCloudEmpty = publicData == null || ((publicData['vocab'] as Map?)?.isEmpty ?? true);
-
-    if (publicData != null && !isCloudEmpty) {
-      vocab = publicData['vocab'] ?? {};
-      globalSettings = publicData['global_settings'] ?? {};
-      
-      // Attempt to download personal data for all local accounts
-      if (localAccounts.isNotEmpty) {
-        for (var accId in localAccounts.keys) {
-          final accName = localAccounts[accId]['name'];
-          if (accName != null) {
-            final personalData = await CloudSyncService().downloadPersonalData(accName);
-            if (personalData != null && personalData['account'] != null) {
-              accounts[accId] = personalData['account'];
-            } else {
-              accounts[accId] = localAccounts[accId];
-            }
-          }
-        }
-      }
-    } else {
-      // Cloud is completely empty or just structural, use local data
-      vocab = localVocab;
-      accounts = localAccounts;
-      globalSettings = localGlobalSettings;
+    for (var row in maps) {
+      if (row['key'] == 'vocab') localVocab = jsonDecode(row['value'] as String);
+      if (row['key'] == 'accounts') localAccounts = jsonDecode(row['value'] as String);
+      if (row['key'] == 'global_settings') localGlobalSettings = jsonDecode(row['value'] as String);
     }
+
+    vocab = localVocab;
+    accounts = localAccounts;
+    globalSettings = localGlobalSettings;
 
     if (accounts.isEmpty) {
       accounts['default'] = {
         "name": "默认账户",
         "role": "admin",
+        "createdAt": DateTime.now().toIso8601String(),
         "history": [],
+        "mistakes": [],
         "stats": {},
         "settings": {
           "allow_backward": true,
@@ -95,18 +73,43 @@ class DataManager {
           "folders": []
         }
       };
-      await saveData();
-    } else {
-      // Save cloud data to local DB to keep it in sync
-      if (publicData != null && !isCloudEmpty) {
-        await _saveToLocalDB();
-      } else {
-        // Cloud is empty (or failed to load) but we have local data, initialize cloud with local data
-        await saveData();
-      }
+      await _saveToLocalDB();
     }
-
     rebuildPosCache();
+  }
+
+  Future<void> syncWithCloud() async {
+    // Attempt to download from cloud first if password is set
+    final publicData = await CloudSyncService().downloadPublicData();
+    bool isCloudEmpty = publicData == null || ((publicData['vocab'] as Map?)?.isEmpty ?? true);
+
+    if (publicData != null && !isCloudEmpty) {
+      vocab = publicData['vocab'] ?? {};
+      globalSettings = publicData['global_settings'] ?? {};
+
+      // Attempt to download personal data for all local accounts
+      if (accounts.isNotEmpty) {
+        for (var accId in accounts.keys) {
+          final accName = accounts[accId]['name'];
+          if (accName != null) {
+            final personalData = await CloudSyncService().downloadPersonalData(accName);
+            if (personalData != null && personalData['account'] != null) {
+              accounts[accId] = personalData['account'];
+            }
+          }
+        }
+      }
+      await _saveToLocalDB();
+      rebuildPosCache();
+    } else {
+      // Cloud is empty (or failed to load) but we have local data, initialize cloud with local data
+      await saveData();
+    }
+  }
+
+  Future<void> loadData() async {
+    await loadLocalDataOnly();
+    await syncWithCloud();
   }
 
   Map<String, dynamic> getAcc(String accId) {
