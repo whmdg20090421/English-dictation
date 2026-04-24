@@ -90,6 +90,7 @@ void main() {
       MultiProvider(
         providers: [
           ChangeNotifierProvider(create: (_) => DictationProvider()),
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ],
         child: const EnglishDictationApp(),
       ),
@@ -104,12 +105,16 @@ class EnglishDictationApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: navigatorKey,
-      title: 'English Dictation',
-      theme: AppTheme.darkTheme,
-      home: const SplashScreen(),
-      debugShowCheckedModeBanner: false,
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          navigatorKey: navigatorKey,
+          title: 'English Dictation',
+          theme: themeProvider.currentThemeData,
+          home: const SplashScreen(),
+          debugShowCheckedModeBanner: false,
+        );
+      },
     );
   }
 }

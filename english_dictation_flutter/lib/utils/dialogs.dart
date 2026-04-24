@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import '../db/data_manager.dart';
 import '../app_state.dart';
 import '../theme.dart';
+import '../utils/crypto_utils.dart';
+import '../sync/cloud_sync_service.dart';
 
 class DialogUtils {
   static String getAdminPwd() {
-    final rawPwd = DataManager.instance.globalSettings['password'] ?? '123456';
+    final rawPwd = DataManager.instance.globalSettings['password'] ?? '';
     return rawPwd.toString().trim();
   }
 
@@ -13,7 +15,8 @@ class DialogUtils {
     if (AppState.instance.authDialogOpen) return;
     AppState.instance.authDialogOpen = true;
 
-    final title = allowGuest && AppState.instance.guestPassword.isNotEmpty
+    final guestPwd = DataManager.instance.globalSettings['guestPassword']?.toString() ?? '';
+    final title = allowGuest && guestPwd.isNotEmpty
         ? '安全验证 (支持访客)'
         : '管理员安全验证';
 
@@ -24,21 +27,21 @@ class DialogUtils {
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: AppTheme.secondaryBlue.withOpacity(0.9),
+          backgroundColor: Theme.of(context).cardColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
-            side: const BorderSide(color: AppTheme.glassBorder, width: 1),
+            side: BorderSide(color: Theme.of(context).dividerColor, width: 1),
           ),
-          title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          title: Text(title, style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontSize: 20, fontWeight: FontWeight.bold)),
           content: TextField(
             controller: controller,
             obscureText: true,
             autofocus: true,
-            style: const TextStyle(color: Colors.white, fontSize: 24),
+            style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 24),
             textAlign: TextAlign.center,
-            decoration: const InputDecoration(
-              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white54, width: 2)),
-              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.accentGreen, width: 2)),
+            decoration: InputDecoration(
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Theme.of(context).dividerColor, width: 2)),
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2)),
             ),
             onSubmitted: (_) {
               _verifyPassword(context, controller.text, allowGuest, callback);
@@ -69,11 +72,24 @@ class DialogUtils {
   }
 
   static void _verifyPassword(BuildContext context, String input, bool allowGuest, VoidCallback callback) {
-    final sysPwd = getAdminPwd();
-    final guestPwd = AppState.instance.guestPassword.trim();
+    final sysPwdEncrypted = getAdminPwd();
+    final guestPwdEncrypted = (DataManager.instance.globalSettings['guestPassword']?.toString() ?? '').trim();
+    final encKey = CloudSyncService().encryptionPassword ?? '';
 
-    final isAdmin = input == sysPwd;
-    final isGuest = allowGuest && guestPwd.isNotEmpty && input == guestPwd;
+    // If sysPwdEncrypted is empty, we assume no password is set, fallback to '123456' matching
+    // Wait, let's just encrypt the input and compare
+    bool isAdmin = false;
+    bool isGuest = false;
+
+    if (sysPwdEncrypted.isEmpty) {
+       isAdmin = input == '123456';
+    } else {
+       isAdmin = CryptoUtils.verifyPassword(input, sysPwdEncrypted, encKey);
+    }
+
+    if (allowGuest && guestPwdEncrypted.isNotEmpty) {
+       isGuest = CryptoUtils.verifyPassword(input, guestPwdEncrypted, encKey);
+    }
 
     if (isAdmin || isGuest) {
       AppState.instance.authDialogOpen = false;
@@ -83,7 +99,6 @@ class DialogUtils {
       ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
         const SnackBar(content: Text('验证失败：密码错误或权限不足'), backgroundColor: Colors.red),
       );
-      // Wait for user to re-enter
     }
   }
 
@@ -92,13 +107,13 @@ class DialogUtils {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: AppTheme.secondaryBlue.withOpacity(0.9),
+          backgroundColor: Theme.of(context).cardColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
-            side: const BorderSide(color: AppTheme.glassBorder, width: 1),
+            side: BorderSide(color: Theme.of(context).dividerColor, width: 1),
           ),
-          title: Text(title, style: const TextStyle(color: Colors.amberAccent, fontSize: 20, fontWeight: FontWeight.bold)),
-          content: Text(msg, style: const TextStyle(color: Colors.white, fontSize: 16)),
+          title: Text(title, style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontSize: 20, fontWeight: FontWeight.bold)),
+          content: Text(msg, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 16)),
           actions: actions.map((action) {
             final String label = action['label'];
             final Color color = action['color'];
@@ -125,16 +140,16 @@ class DialogUtils {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: AppTheme.secondaryBlue.withOpacity(0.9),
+          backgroundColor: Theme.of(context).cardColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
-            side: const BorderSide(color: AppTheme.glassBorder, width: 1),
+            side: BorderSide(color: Theme.of(context).dividerColor, width: 1),
           ),
-          title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          title: Text(title, style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontSize: 20, fontWeight: FontWeight.bold)),
           content: TextField(
             controller: controller,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(labelText: label, labelStyle: const TextStyle(color: Colors.white54)),
+            style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+            decoration: InputDecoration(labelText: label, labelStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
           ),
           actions: [
             TextButton(
@@ -169,29 +184,29 @@ class DialogUtils {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              backgroundColor: AppTheme.secondaryBlue.withOpacity(0.9),
+              backgroundColor: Theme.of(context).cardColor,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(15),
-                side: const BorderSide(color: AppTheme.glassBorder, width: 1),
+                side: BorderSide(color: Theme.of(context).dividerColor, width: 1),
               ),
-              title: const Text('新建账户', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              title: Text('新建账户', style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontSize: 20, fontWeight: FontWeight.bold)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: controller,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(labelText: '输入姓名/昵称', labelStyle: TextStyle(color: Colors.white54)),
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                    decoration: InputDecoration(labelText: '输入姓名/昵称', labelStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Text('角色:', style: TextStyle(color: Colors.white)),
+                      Text('角色:', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
                       const SizedBox(width: 16),
                       DropdownButton<String>(
                         value: selectedRole,
-                        dropdownColor: AppTheme.secondaryBlue,
-                        style: const TextStyle(color: Colors.white),
+                        dropdownColor: Theme.of(context).cardColor,
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
                         items: const [
                           DropdownMenuItem(value: 'user', child: Text('普通用户')),
                           DropdownMenuItem(value: 'admin', child: Text('管理员')),

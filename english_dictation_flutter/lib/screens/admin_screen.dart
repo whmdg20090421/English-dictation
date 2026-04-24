@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../db/data_manager.dart';
 import '../app_state.dart';
+import '../utils/crypto_utils.dart';
+import '../sync/cloud_sync_service.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -531,12 +533,6 @@ class _SettingsTabState extends State<_SettingsTab> {
   int _hintDelay = 5;
   int _hintLimit = 0;
 
-  bool _isPasswordVisibleOld = false;
-  bool _isPasswordVisibleNew = false;
-  bool _isEncrypted = true;
-
-  final TextEditingController _oldPassController = TextEditingController();
-  final TextEditingController _newPassController = TextEditingController();
   final TextEditingController _perQTimeController = TextEditingController();
   final TextEditingController _hintDelayController = TextEditingController();
   final TextEditingController _hintLimitController = TextEditingController();
@@ -549,8 +545,6 @@ class _SettingsTabState extends State<_SettingsTab> {
 
   @override
   void dispose() {
-    _oldPassController.dispose();
-    _newPassController.dispose();
     _perQTimeController.dispose();
     _hintDelayController.dispose();
     _hintLimitController.dispose();
@@ -567,8 +561,6 @@ class _SettingsTabState extends State<_SettingsTab> {
     _perQTime = (settings['per_q_time'] ?? 20.0).toDouble();
     _hintDelay = settings['hint_delay'] ?? 5;
     _hintLimit = settings['hint_limit'] ?? 0;
-    
-    _isEncrypted = DataManager.instance.globalSettings['is_encrypted'] ?? true;
 
     _perQTimeController.text = _perQTime.toString();
     _hintDelayController.text = _hintDelay.toString();
@@ -587,7 +579,6 @@ class _SettingsTabState extends State<_SettingsTab> {
       'hint_limit': int.tryParse(_hintLimitController.text) ?? 0,
       'folders': currentAcc['settings']?['folders'] ?? [],
     };
-    DataManager.instance.globalSettings['is_encrypted'] = _isEncrypted;
     DataManager.instance.saveData();
   }
 
@@ -666,36 +657,122 @@ class _SettingsTabState extends State<_SettingsTab> {
   }
 
   void _changePassword() {
-    final oldPass = _oldPassController.text;
-    final newPass = _newPassController.text;
-    final currentPass = DataManager.instance.globalSettings['admin_password'] ?? '';
-    
-    if (oldPass == currentPass || currentPass.isEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('高危操作确认'),
-          content: const Text('确定要修改系统管理员主密码吗？'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () {
-                DataManager.instance.globalSettings['admin_password'] = newPass;
-                DataManager.instance.saveData();
-                _oldPassController.clear();
-                _newPassController.clear();
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('密码修改成功')));
-              },
-              child: const Text('确定'),
-            ),
-          ],
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('旧密码错误')));
-    }
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final _oldPassCtrl = TextEditingController();
+        final _newPassCtrl = TextEditingController();
+        final _confirmPassCtrl = TextEditingController();
+        bool _obscureOld = true;
+        bool _obscureNew = true;
+        bool _obscureConfirm = true;
+
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: Theme.of(context).cardColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+                side: BorderSide(color: Theme.of(context).dividerColor, width: 1),
+              ),
+              title: Text('修改系统管理员主密码', style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontWeight: FontWeight.bold)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: _oldPassCtrl,
+                      obscureText: _obscureOld,
+                      decoration: InputDecoration(
+                        labelText: '请输入原密码',
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscureOld ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setStateDialog(() => _obscureOld = !_obscureOld),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _newPassCtrl,
+                      obscureText: _obscureNew,
+                      decoration: InputDecoration(
+                        labelText: '请输入新密码',
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscureNew ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setStateDialog(() => _obscureNew = !_obscureNew),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _confirmPassCtrl,
+                      obscureText: _obscureConfirm,
+                      decoration: InputDecoration(
+                        labelText: '请再次输入新密码',
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setStateDialog(() => _obscureConfirm = !_obscureConfirm),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(backgroundColor: Colors.grey[500]),
+                  child: const Text('取消', style: TextStyle(color: Colors.white)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  onPressed: () {
+                    final encKey = CloudSyncService().encryptionPassword ?? '';
+                    final currentEncryptedPass = DataManager.instance.globalSettings['password'] ?? '';
+                    final oldInput = _oldPassCtrl.text;
+                    final newInput = _newPassCtrl.text;
+                    final confirmInput = _confirmPassCtrl.text;
+
+                    // Verify old password
+                    bool isOldCorrect = false;
+                    if (currentEncryptedPass.isEmpty) {
+                      isOldCorrect = oldInput == '123456';
+                    } else {
+                      isOldCorrect = CryptoUtils.verifyPassword(oldInput, currentEncryptedPass, encKey);
+                    }
+
+                    if (!isOldCorrect) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('原密码错误')));
+                      return;
+                    }
+
+                    if (newInput.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('新密码不能为空')));
+                      return;
+                    }
+
+                    if (newInput != confirmInput) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('两次输入的新密码不一致')));
+                      return;
+                    }
+
+                    // Save new password
+                    final encryptedNewPass = CryptoUtils.encryptPassword(newInput, encKey);
+                    DataManager.instance.globalSettings['password'] = encryptedNewPass;
+                    DataManager.instance.saveData();
+
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('密码修改成功，请妥善保管')));
+                  },
+                  child: const Text('确认修改', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -752,74 +829,52 @@ class _SettingsTabState extends State<_SettingsTab> {
           label: const Text('仅清空错题本记录'),
         ),
         const SizedBox(height: 16),
+        const Text('全局外观与主题', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber)),
+        Card(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Consumer<ThemeProvider>(
+              builder: (context, themeProvider, child) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('选择应用主题', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    SegmentedButton<ThemeModeType>(
+                      segments: const [
+                        ButtonSegment(value: ThemeModeType.light, label: Text('白天'), icon: Icon(Icons.light_mode)),
+                        ButtonSegment(value: ThemeModeType.dark, label: Text('黑暗'), icon: Icon(Icons.dark_mode)),
+                        ButtonSegment(value: ThemeModeType.cyberpunk, label: Text('赛博朋克'), icon: Icon(Icons.memory)),
+                      ],
+                      selected: {themeProvider.themeMode},
+                      onSelectionChanged: (Set<ThemeModeType> newSelection) {
+                        themeProvider.setTheme(newSelection.first);
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         const Text('全局安全控制与密码管理', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber)),
         Card(
           margin: const EdgeInsets.symmetric(vertical: 8),
           child: Padding(
             padding: const EdgeInsets.all(12.0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('高强度密码加密隔离', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(_isEncrypted ? '当前状态：🔒 已加密隐藏 (安全)' : '当前状态：🔓 明文显示 (不安全)', style: TextStyle(color: _isEncrypted ? Colors.amber : Colors.red)),
-                const SizedBox(height: 8),
-                ElevatedButton(onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('高危操作确认'),
-                      content: Text('确定要切换至\${!_isEncrypted ? '加密隐藏' : '明文显示'}状态吗？'),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                          onPressed: () {
-                            setState(() { _isEncrypted = !_isEncrypted; });
-                            _saveSettings();
-                            Navigator.pop(context);
-                          },
-                          child: const Text('确定'),
-                        ),
-                      ],
-                    ),
-                  );
-                }, child: const Text('点击切换加密/明文状态')),
-              ],
-            ),
-          ),
-        ),
-        Card(
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text('修改系统管理员主密码', style: TextStyle(fontWeight: FontWeight.bold)),
-                TextField(
-                  controller: _oldPassController,
-                  decoration: InputDecoration(
-                    labelText: '请输入当前旧密码',
-                    suffixIcon: IconButton(
-                      icon: Icon(_isPasswordVisibleOld ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setState(() => _isPasswordVisibleOld = !_isPasswordVisibleOld),
-                    ),
-                  ),
-                  obscureText: !_isPasswordVisibleOld,
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red[700]),
+                  onPressed: _changePassword,
+                  icon: const Icon(Icons.password),
+                  label: const Text('修改密码', style: TextStyle(color: Colors.white)),
                 ),
-                TextField(
-                  controller: _newPassController,
-                  decoration: InputDecoration(
-                    labelText: '请输入新密码',
-                    suffixIcon: IconButton(
-                      icon: Icon(_isPasswordVisibleNew ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setState(() => _isPasswordVisibleNew = !_isPasswordVisibleNew),
-                    ),
-                  ),
-                  obscureText: !_isPasswordVisibleNew,
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: _changePassword, child: const Text('确认修改密码')),
               ],
             ),
           ),

@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../sync/cloud_sync_service.dart';
 import '../db/data_manager.dart';
 import 'home_screen.dart';
+import '../utils/crypto_utils.dart';
 
 import '../components/cloud_status_indicator.dart';
 
@@ -27,15 +28,20 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
         _isLoading = true;
       });
 
+      final encKey = _encPwdController.text;
+      
+      final encryptedAdminPwd = CryptoUtils.encryptPassword(_adminPwdController.text, encKey);
+      final encryptedGuestPwd = CryptoUtils.encryptPassword(_guestPwdController.text, encKey);
+
       final configData = {
-        'adminPassword': _adminPwdController.text,
-        'guestPassword': _guestPwdController.text,
+        'adminPassword': encryptedAdminPwd,
+        'guestPassword': encryptedGuestPwd,
         'createdAt': DateTime.now().toIso8601String(),
       };
 
       final success = await CloudSyncService().uploadConfig(
         configData,
-        _encPwdController.text,
+        encKey,
       );
 
       setState(() {
@@ -45,12 +51,12 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
       if (success) {
         // Save encryption password locally
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('encryption_password', _encPwdController.text);
-        CloudSyncService().setEncryptionPassword(_encPwdController.text);
+        await prefs.setString('encryption_password', encKey);
+        CloudSyncService().setEncryptionPassword(encKey);
 
         // Also save admin/guest passwords to globalSettings so app logic uses them
-        DataManager.instance.globalSettings['password'] = _adminPwdController.text;
-        DataManager.instance.globalSettings['guestPassword'] = _guestPwdController.text;
+        DataManager.instance.globalSettings['password'] = encryptedAdminPwd;
+        DataManager.instance.globalSettings['guestPassword'] = encryptedGuestPwd;
         
         // Initial upload of existing data to cloud
         await DataManager.instance.loadData(); // Load local data first, which will auto-initialize empty cloud
