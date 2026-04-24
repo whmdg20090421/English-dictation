@@ -132,8 +132,8 @@ class _TestingScreenState extends State<TestingScreen> {
     final target = meta['word'] as String;
     
     // Find all parts of speech in the dictionary for this word
-    final validPosList = meta.keys.where((k) => k.endsWith('.') && k != 'translation' && k != 'word' && k != '_test_mode').toList();
-    final expectedPos = validPosList.isNotEmpty ? validPosList : ['n.']; 
+    final List<String> validPosList = meta.keys.where((k) => k.toString().endsWith('.') && k != 'translation' && k != 'word' && k != '_test_mode').map((e) => e.toString()).toList();
+    final List<String> expectedPos = validPosList.isNotEmpty ? validPosList : ['n.']; 
     
     bool isCorrect = _selectedPos.isNotEmpty; // simplistic check
     final ansStr = _selectedPos.isNotEmpty ? _selectedPos.join(',') : "未选择";
@@ -294,9 +294,9 @@ class _TestingScreenState extends State<TestingScreen> {
     } else if (mode == 'pos') {
       // Collect available parts of speech from vocab structure or use defaults
       final Set<String> allPossiblePos = {'n.', 'v.', 'adj.', 'adv.', 'prep.', 'conj.', 'pron.', 'num.', 'art.', 'int.'};
-      final wordPosList = meta.keys.where((k) => k.endsWith('.') && k != 'translation' && k != 'word' && k != '_test_mode').toList();
+      final List<String> wordPosList = meta.keys.where((k) => k.toString().endsWith('.') && k != 'translation' && k != 'word' && k != '_test_mode').map((e) => e.toString()).toList();
       allPossiblePos.addAll(wordPosList);
-      final opts = allPossiblePos.toList()..sort();
+      final List<String> opts = allPossiblePos.toList()..sort();
       
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,

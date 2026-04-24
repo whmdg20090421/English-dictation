@@ -800,12 +800,12 @@ class _LogsTabState extends State<_LogsTab> {
                   final log = history[index];
                   final details = (log['details'] as List?) ?? [];
                   return ExpansionTile(
-                    title: Text('\${log['time'] ?? '未知时间'} (\${log['score'] ?? 0}分 - \${log['mode'] ?? '未知模式'} - 已完成)'),
-                    subtitle: Text('总得分点: \${log['total_points'] ?? 0} | 提示使用: \${log['hints_used'] ?? 0}次', style: const TextStyle(color: Colors.grey)),
+                    title: Text("\${log['time'] ?? '未知时间'} (\${log['score'] ?? 0}分 - \${log['mode'] ?? '未知模式'} - 已完成)"),
+                    subtitle: Text("总得分点: \${log['total_points'] ?? 0} | 提示使用: \${log['hints_used'] ?? 0}次", style: const TextStyle(color: Colors.grey)),
                     children: details.map<Widget>((d) {
                       final isCorrect = d['is_correct'] == true;
                       return ListTile(
-                        title: Text('[\${d['type'] ?? '未知'}] \${d['word'] ?? ''} -> \${d['answer'] ?? ''} (标答:[\${d['correct_answer'] ?? ''}])', 
+                        title: Text("[\${d['type'] ?? '未知'}] \${d['word'] ?? ''} -> \${d['answer'] ?? ''} (标答:[\${d['correct_answer'] ?? ''}])", 
                           style: TextStyle(color: isCorrect ? Colors.green : Colors.red)),
                       );
                     }).toList(),
