@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/package:path_provider.dart';
+import 'package:path_provider/path_provider.dart';
 import 'screens/splash_screen.dart';
 import 'theme.dart';
 import 'providers/dictation_provider.dart';
