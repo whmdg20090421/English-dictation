@@ -23,9 +23,37 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadData() async {
-    await DataManager.instance.loadData();
-    AppState.instance.init();
-    setState(() {});
+    try {
+      await DataManager.instance.loadData();
+    } catch (e, stack) {
+      debugPrint('Error in _loadData: $e\n$stack');
+      // If it fails to load, at least initialize a fallback state so the UI doesn't hang.
+      if (DataManager.instance.accounts.isEmpty) {
+        DataManager.instance.accounts['default'] = {
+          "name": "默认账户",
+          "role": "admin",
+          "history": [],
+          "stats": {},
+          "settings": {
+            "allow_backward": true,
+            "allow_hint": false,
+            "timer_lock": true,
+            "per_q_time": 20.0,
+            "hide_test_config": false,
+            "hint_delay": 5,
+            "hint_limit": 0,
+            "folders": []
+          }
+        };
+      }
+      // Rethrow so the global error handler can catch and log it
+      rethrow;
+    } finally {
+      AppState.instance.init();
+      if (mounted) {
+        setState(() {});
+      }
+    }
   }
 
   void _showAccountSwitch() {

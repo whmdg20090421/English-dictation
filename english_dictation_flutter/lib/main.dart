@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:path_provider/package:path_provider.dart';
 import 'screens/splash_screen.dart';
 import 'theme.dart';
 import 'providers/dictation_provider.dart';
@@ -9,7 +11,29 @@ import 'components/error_dialog.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+Future<void> _writeErrorLogToFile(String error, String stack) async {
+  try {
+    Directory? directory;
+    if (Platform.isAndroid) {
+      directory = await getExternalStorageDirectory();
+    } else {
+      directory = await getApplicationDocumentsDirectory();
+    }
+    
+    if (directory != null) {
+      final file = File('${directory.path}/english_dictation_error_log.txt');
+      final timestamp = DateTime.now().toIso8601String();
+      final logMessage = '\n--- Error at $timestamp ---\n$error\n$stack\n';
+      await file.writeAsString(logMessage, mode: FileMode.append);
+      debugPrint('Error log written to ${file.path}');
+    }
+  } catch (e) {
+    debugPrint('Failed to write error log: $e');
+  }
+}
+
 void _showGlobalError(String error, String stack) {
+  _writeErrorLogToFile(error, stack);
   final context = navigatorKey.currentContext;
   if (context != null) {
     showDialog(
