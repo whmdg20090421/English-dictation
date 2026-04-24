@@ -121,9 +121,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                       if (newName.isNotEmpty && newName != acc['name']) {
                                         acc['name'] = newName;
                                         DataManager.instance.saveData().then((_) {
-                                          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('已重命名为: $newName'), backgroundColor: Colors.green));
-                                          setStateDialog(() {});
-                                          setState(() {});
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('已重命名为: $newName'), backgroundColor: Colors.green));
+                                            setStateDialog(() {});
+                                            setState(() {});
+                                          }
                                         });
                                       }
                                     });
@@ -146,9 +148,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                           AppState.instance.currentAccountId = accounts.keys.first;
                                         }
                                         DataManager.instance.saveData().then((_) {
-                                          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('账户 [${acc['name']}] 已彻底删除'), backgroundColor: Colors.green));
-                                          setStateDialog(() {});
-                                          setState(() {});
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('账户 [${acc['name']}] 已彻底删除'), backgroundColor: Colors.green));
+                                            setStateDialog(() {});
+                                            setState(() {});
+                                          }
                                         });
                                       }},
                                     ]);
@@ -190,9 +194,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               "settings": Map.from(baseSettings)
                             };
                             DataManager.instance.saveData().then((_) {
-                              ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('账户 $name ($role) 已创建'), backgroundColor: Colors.green));
-                              setStateDialog(() {});
-                              setState(() {});
+                              if (mounted) {
+                                ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(SnackBar(content: Text('账户 $name ($role) 已创建'), backgroundColor: Colors.green));
+                                setStateDialog(() {});
+                                setState(() {});
+                              }
                             });
                           }
                         });

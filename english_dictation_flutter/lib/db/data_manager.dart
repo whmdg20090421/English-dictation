@@ -164,13 +164,16 @@ class DataManager {
     // Upload personal data
     if (isAdmin) {
       // Admins sync all local accounts to their respective directories
-      for (var accId in accounts.keys) {
+      final keys = accounts.keys.toList(); // Copy keys to prevent concurrent modification
+      for (var accId in keys) {
         final acc = accounts[accId];
-        final accName = acc['name'];
-        if (accName != null) {
-          await CloudSyncService().uploadPersonalData(accName, {
-            'account': acc,
-          });
+        if (acc != null) {
+          final accName = acc['name'];
+          if (accName != null) {
+            await CloudSyncService().uploadPersonalData(accName, {
+              'account': acc,
+            });
+          }
         }
       }
     } else {

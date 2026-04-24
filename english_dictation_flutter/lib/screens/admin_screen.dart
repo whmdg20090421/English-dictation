@@ -36,15 +36,24 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             Icon(Icons.settings, size: 24),
           ],
         ),
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabs: const [
-            Tab(text: '全局书单与词库'),
-            Tab(text: '导入与导出'),
-            Tab(text: '专属系统设置'),
-            Tab(text: '个人听写明细'),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48.0),
+          child: Container(
+            alignment: Alignment.centerLeft,
+            child: TabBar(
+              controller: _tabController,
+              tabAlignment: TabAlignment.start,
+              isScrollable: true,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 16.0),
+              indicatorSize: TabBarIndicatorSize.label,
+              tabs: const [
+                Tab(text: '全局书单与词库'),
+                Tab(text: '导入与导出'),
+                Tab(text: '专属系统设置'),
+                Tab(text: '个人听写明细'),
+              ],
+            ),
+          ),
         ),
       ),
       body: TabBarView(
