@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../sync/cloud_sync_service.dart';
 import '../db/data_manager.dart';
 import '../app_state.dart';
 import '../screens/cloud_file_manager_screen.dart';
+import '../screens/cloud_setup_screen.dart';
+
+enum CloudState {
+  connected,
+  disconnected,
+  unconfigured
+}
 
 class CloudStatusIndicator extends StatefulWidget {
   const CloudStatusIndicator({super.key});
@@ -12,7 +20,7 @@ class CloudStatusIndicator extends StatefulWidget {
 }
 
 class _CloudStatusIndicatorState extends State<CloudStatusIndicator> {
-  bool _isConnected = false;
+  CloudState _state = CloudState.disconnected;
 
   @override
   void initState() {
@@ -20,31 +28,33 @@ class _CloudStatusIndicatorState extends State<CloudStatusIndicator> {
     _checkConnection();
     CloudSyncService().connectionStatusStream.listen((status) {
       if (mounted) {
-        setState(() {
-          _isConnected = status;
-        });
+        _checkConnection();
       }
     });
   }
 
   Future<void> _checkConnection() async {
+    final prefs = await SharedPreferences.getInstance();
+    final pwd = prefs.getString('encryption_password');
+    
+    if (pwd == null || pwd.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _state = CloudState.unconfigured;
+        });
+      }
+      return;
+    }
+
     final connected = await CloudSyncService().ping();
     if (mounted) {
       setState(() {
-        _isConnected = connected;
+        _state = connected ? CloudState.connected : CloudState.disconnected;
       });
     }
   }
 
   void _showMenu(BuildContext context) {
-    if (!_isConnected) {
-      _showErrorLogs(context);
-      return;
-    }
-
-    final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
-    final isAdmin = currentAcc['role'] == 'admin';
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.blueGrey[900],
@@ -56,48 +66,72 @@ class _CloudStatusIndicatorState extends State<CloudStatusIndicator> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                leading: const Icon(Icons.cloud_upload, color: Colors.green),
-                title: const Text('上传资料', style: TextStyle(color: Colors.white)),
-                onTap: () async {
-                  Navigator.pop(context);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
-                    const SnackBar(content: Text('正在上传资料...'), backgroundColor: Colors.blue),
-                  );
-                  await DataManager.instance.saveData();
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
-                    const SnackBar(content: Text('上传完成'), backgroundColor: Colors.green),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.cloud_download, color: Colors.blue),
-                title: const Text('下载资料', style: TextStyle(color: Colors.white)),
-                onTap: () async {
-                  Navigator.pop(context);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
-                    const SnackBar(content: Text('正在下载资料...'), backgroundColor: Colors.blue),
-                  );
-                  await DataManager.instance.loadData();
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
-                    const SnackBar(content: Text('下载完成'), backgroundColor: Colors.green),
-                  );
-                },
-              ),
-              if (isAdmin)
+              if (_state == CloudState.unconfigured)
                 ListTile(
-                  leading: const Icon(Icons.edit, color: Colors.orange),
-                  title: const Text('编辑云端资料', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(Icons.settings, color: Colors.red),
+                  title: const Text('去配置云端密码', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const CloudFileManagerScreen()),
+                      MaterialPageRoute(builder: (context) => const CloudSetupScreen()),
+                    ).then((_) => _checkConnection());
+                  },
+                ),
+              if (_state != CloudState.unconfigured) ...[
+                ListTile(
+                  leading: const Icon(Icons.cloud_upload, color: Colors.green),
+                  title: const Text('上传资料', style: TextStyle(color: Colors.white)),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+                      const SnackBar(content: Text('正在上传资料...'), backgroundColor: Colors.blue),
                     );
+                    await DataManager.instance.saveData();
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+                      const SnackBar(content: Text('上传完成'), backgroundColor: Colors.green),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.cloud_download, color: Colors.blue),
+                  title: const Text('下载资料', style: TextStyle(color: Colors.white)),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+                      const SnackBar(content: Text('正在下载资料...'), backgroundColor: Colors.blue),
+                    );
+                    await DataManager.instance.loadData();
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+                      const SnackBar(content: Text('下载完成'), backgroundColor: Colors.green),
+                    );
+                  },
+                ),
+                if (DataManager.instance.accounts.isNotEmpty && 
+                    DataManager.instance.getAcc(AppState.instance.currentAccountId)['role'] == 'admin')
+                  ListTile(
+                    leading: const Icon(Icons.edit, color: Colors.orange),
+                    title: const Text('编辑云端资料', style: TextStyle(color: Colors.white)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const CloudFileManagerScreen()),
+                      );
+                    },
+                  ),
+              ],
+              if (_state == CloudState.disconnected)
+                ListTile(
+                  leading: const Icon(Icons.error_outline, color: Colors.yellow),
+                  title: const Text('查看报错日志', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showErrorLogs(context);
                   },
                 ),
             ],
@@ -145,6 +179,28 @@ class _CloudStatusIndicatorState extends State<CloudStatusIndicator> {
 
   @override
   Widget build(BuildContext context) {
+    IconData icon;
+    Color color;
+    String text;
+
+    switch (_state) {
+      case CloudState.connected:
+        icon = Icons.cloud_done;
+        color = Colors.green;
+        text = '已连接';
+        break;
+      case CloudState.disconnected:
+        icon = Icons.cloud_off;
+        color = Colors.yellow;
+        text = '未连接';
+        break;
+      case CloudState.unconfigured:
+        icon = Icons.cloud_off;
+        color = Colors.red;
+        text = '未配置';
+        break;
+    }
+
     return GestureDetector(
       onTap: () => _showMenu(context),
       child: Container(
@@ -156,16 +212,12 @@ class _CloudStatusIndicatorState extends State<CloudStatusIndicator> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              _isConnected ? Icons.cloud_done : Icons.cloud_off,
-              color: _isConnected ? Colors.green : Colors.red,
-              size: 20,
-            ),
+            Icon(icon, color: color, size: 20),
             const SizedBox(width: 8),
             Text(
-              _isConnected ? '云端已连接' : '云端异常',
+              text,
               style: TextStyle(
-                color: _isConnected ? Colors.green[300] : Colors.red[300],
+                color: color,
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
               ),

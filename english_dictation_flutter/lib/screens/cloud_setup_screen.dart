@@ -43,18 +43,27 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
       });
 
       if (success) {
-        // Save password locally
+        // Save encryption password locally
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('encryption_password', _encPwdController.text);
         CloudSyncService().setEncryptionPassword(_encPwdController.text);
+
+        // Also save admin/guest passwords to globalSettings so app logic uses them
+        DataManager.instance.globalSettings['password'] = _adminPwdController.text;
+        DataManager.instance.globalSettings['guestPassword'] = _guestPwdController.text;
         
         // Initial upload of existing data to cloud
         await DataManager.instance.loadData(); // Load local data first, which will auto-initialize empty cloud
 
         if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
+        
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        }
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
