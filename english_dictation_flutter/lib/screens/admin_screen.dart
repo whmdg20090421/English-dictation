@@ -304,21 +304,38 @@ class _ImportExportTabState extends State<_ImportExportTab> {
       final jsonStr = textController.text;
       final data = jsonDecode(jsonStr) as Map<String, dynamic>;
       
-      bool isSingleUnit = false;
-      if (data.values.isNotEmpty) {
-        final firstVal = data.values.first;
-        if (firstVal is Map && firstVal.containsKey('单词')) {
-          isSingleUnit = true;
-        }
-      }
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('高危操作确认'),
+          content: const Text('确定要导入此数据吗？可能会覆盖或合并现有词库。'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () {
+                Navigator.pop(context);
+                bool isSingleUnit = false;
+                if (data.values.isNotEmpty) {
+                  final firstVal = data.values.first;
+                  if (firstVal is Map && firstVal.containsKey('单词')) {
+                    isSingleUnit = true;
+                  }
+                }
 
-      if (isSingleUnit) {
-        _showSingleUnitImportDialog(data);
-      } else {
-        _mergeMultiUnit(data);
-      }
+                if (isSingleUnit) {
+                  _showSingleUnitImportDialog(data);
+                } else {
+                  _mergeMultiUnit(data);
+                }
+              },
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      );
     } catch(e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导入失败: 格式错误')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('导入失败: 格式错误')));
     }
   }
 
@@ -575,18 +592,52 @@ class _SettingsTabState extends State<_SettingsTab> {
   }
 
   void _clearStatsAndHistory() {
-    final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
-    currentAcc['stats'] = {};
-    currentAcc['history'] = [];
-    DataManager.instance.saveData();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已清空统计与历史记录')));
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('高危操作确认'),
+        content: const Text('确定要清空所有统计与历史记录吗？此操作不可逆！'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
+              currentAcc['stats'] = {};
+              currentAcc['history'] = [];
+              DataManager.instance.saveData();
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已清空统计与历史记录')));
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _clearMistakes() {
-    final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
-    currentAcc['mistakes'] = [];
-    DataManager.instance.saveData();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已清空错题本记录')));
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('高危操作确认'),
+        content: const Text('确定要清空错题本记录吗？此操作不可逆！'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
+              currentAcc['mistakes'] = [];
+              DataManager.instance.saveData();
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已清空错题本记录')));
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _eraseAllData() {
@@ -620,11 +671,28 @@ class _SettingsTabState extends State<_SettingsTab> {
     final currentPass = DataManager.instance.globalSettings['admin_password'] ?? '';
     
     if (oldPass == currentPass || currentPass.isEmpty) {
-      DataManager.instance.globalSettings['admin_password'] = newPass;
-      DataManager.instance.saveData();
-      _oldPassController.clear();
-      _newPassController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('密码修改成功')));
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('高危操作确认'),
+          content: const Text('确定要修改系统管理员主密码吗？'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () {
+                DataManager.instance.globalSettings['admin_password'] = newPass;
+                DataManager.instance.saveData();
+                _oldPassController.clear();
+                _newPassController.clear();
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('密码修改成功')));
+              },
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('旧密码错误')));
     }
@@ -696,8 +764,25 @@ class _SettingsTabState extends State<_SettingsTab> {
                 Text(_isEncrypted ? '当前状态：🔒 已加密隐藏 (安全)' : '当前状态：🔓 明文显示 (不安全)', style: TextStyle(color: _isEncrypted ? Colors.amber : Colors.red)),
                 const SizedBox(height: 8),
                 ElevatedButton(onPressed: () {
-                  setState(() { _isEncrypted = !_isEncrypted; });
-                  _saveSettings();
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('高危操作确认'),
+                      content: Text('确定要切换至\${!_isEncrypted ? '加密隐藏' : '明文显示'}状态吗？'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                          onPressed: () {
+                            setState(() { _isEncrypted = !_isEncrypted; });
+                            _saveSettings();
+                            Navigator.pop(context);
+                          },
+                          child: const Text('确定'),
+                        ),
+                      ],
+                    ),
+                  );
                 }, child: const Text('点击切换加密/明文状态')),
               ],
             ),
@@ -762,11 +847,28 @@ class _LogsTab extends StatefulWidget {
 
 class _LogsTabState extends State<_LogsTab> {
   void _clearLogs() {
-    final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
-    currentAcc['history'] = [];
-    DataManager.instance.saveData();
-    setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('记录已清空')));
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('高危操作确认'),
+        content: const Text('确定要清空所有记录吗？此操作不可逆！'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
+              currentAcc['history'] = [];
+              DataManager.instance.saveData();
+              setState(() {});
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('记录已清空')));
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
