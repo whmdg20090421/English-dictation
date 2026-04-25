@@ -121,7 +121,7 @@ class DataManager {
 
   void rebuildPosCache() {
     posCache.clear();
-    final allWords = getAllWords(vocab);
+    final allWords = DataManager.getAllWords(vocab);
     for (var w in allWords) {
       for (var k in w.keys) {
         if (!["单词", "word", "_uid", "source_book", "_ask_pos", "_test_mode", "_type", "translation"].contains(k)) {
