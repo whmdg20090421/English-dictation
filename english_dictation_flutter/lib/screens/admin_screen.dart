@@ -110,7 +110,7 @@ class _WordsTabState extends State<_WordsTab> {
               final text = controller.text.trim();
               if (text.isNotEmpty) {
                 setState(() {
-                  DataManager.instance.vocab[text] = {};
+                  DataManager.instance.vocab[text] = <String, dynamic>{};
                 });
                 DataManager.instance.saveData();
               }
@@ -142,8 +142,8 @@ class _WordsTabState extends State<_WordsTab> {
                 setState(() {
                   Map<String, dynamic> curr = DataManager.instance.vocab;
                   for (var p in path) {
-                    curr[p] ??= {};
-                    curr = curr[p] as Map<String, dynamic>;
+                    curr[p] ??= <String, dynamic>{};
+                    curr = (curr[p] as Map).cast<String, dynamic>();
                   }
                   curr[text] = {'_type': isFile ? 'file' : 'folder'};
                 });
@@ -221,8 +221,8 @@ class _WordsTabState extends State<_WordsTab> {
 
                     Map<String, dynamic> curr = DataManager.instance.vocab;
                     for (var p in path) {
-                      curr[p] ??= {};
-                      curr = curr[p] as Map<String, dynamic>;
+                      curr[p] ??= <String, dynamic>{};
+                      curr = (curr[p] as Map).cast<String, dynamic>();
                     }
                     
                     final wId = wordId ?? 'word_${DateTime.now().millisecondsSinceEpoch}';
@@ -304,7 +304,7 @@ class _WordsTabState extends State<_WordsTab> {
               padding: const EdgeInsets.only(left: 16.0),
               child: Row(
                 children: [
-                  Expanded(child: _buildVocabTree(childEntry.value as Map<String, dynamic>, [...path, childEntry.key])),
+                  Expanded(child: _buildVocabTree((childEntry.value as Map).cast<String, dynamic>(), [...path, childEntry.key])),
                   if (_isEditMode)
                     IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () {
                       setState(() {
@@ -376,7 +376,7 @@ class _WordsTabState extends State<_WordsTab> {
               children: vocab.entries.where((e) => e.key != '_type').map((entry) {
                 return Row(
                   children: [
-                    Expanded(child: _buildVocabTree(entry.value as Map<String, dynamic>, [entry.key])),
+                    Expanded(child: _buildVocabTree((entry.value as Map).cast<String, dynamic>(), [entry.key])),
                     if (_isEditMode)
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
@@ -416,7 +416,7 @@ class _ImportExportTabState extends State<_ImportExportTab> {
   void _importData() {
     try {
       final jsonStr = textController.text;
-      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final data = (jsonDecode(jsonStr) as Map).cast<String, dynamic>();
       
       showDialog(
         context: context,
@@ -713,8 +713,8 @@ class _SettingsTabState extends State<_SettingsTab> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
-              currentAcc['stats'] = {};
-              currentAcc['history'] = [];
+              currentAcc['stats'] = <String, dynamic>{};
+                currentAcc['history'] = <dynamic>[];
               DataManager.instance.saveData();
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已清空统计与历史记录')));

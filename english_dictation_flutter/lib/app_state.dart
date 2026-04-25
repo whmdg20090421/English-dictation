@@ -16,7 +16,7 @@ class AppState extends ChangeNotifier {
   bool isSubmitting = false;
   bool resultSaved = false;
 
-  Map<int, dynamic> userAnswers = {};
+  Map<int, dynamic> userAnswers = <int, dynamic>{};
   double perQTime = 20.0;
   double totalTime = 0.0;
   double qTimeLeft = 20.0;

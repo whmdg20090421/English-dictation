@@ -342,8 +342,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
-    final myHistory = currentAcc['history'] as List? ?? [];
-    final myStats = currentAcc['stats'] as Map<String, dynamic>? ?? {};
+    final myHistory = currentAcc['history'] as List? ?? <dynamic>[];
+    final myStats = (currentAcc['stats'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
     
     int totalTests = myHistory.length;
     int totalPracticed = 0;

@@ -6,7 +6,7 @@ class DictationProvider extends ChangeNotifier {
   List<Map<String, dynamic>> testQueue = [];
   int currentQIndex = 0;
   
-  Map<int, Map<String, dynamic>> userAnswers = {};
+  Map<int, Map<String, dynamic>> userAnswers = <int, Map<String, dynamic>>{};
   List<Map<String, dynamic>> scoreLog = [];
   Set<int> usedHints = {};
 
@@ -27,7 +27,7 @@ class DictationProvider extends ChangeNotifier {
     selectedWords = [];
     testQueue = [];
     currentQIndex = 0;
-    userAnswers = {};
+    userAnswers = <int, Map<String, dynamic>>{};
     scoreLog = [];
     usedHints = {};
     totLeft = totalTime;

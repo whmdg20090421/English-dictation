@@ -122,7 +122,7 @@ class CloudSyncService {
       final encrypted = encrypt.Encrypted(encryptedBytes);
 
       final decrypted = encrypter.decrypt(encrypted, iv: iv);
-      return jsonDecode(decrypted) as Map<String, dynamic>;
+      return (jsonDecode(decrypted) as Map).cast<String, dynamic>();
     } catch (e) {
       _logError('Decryption failed: $e');
       return null;

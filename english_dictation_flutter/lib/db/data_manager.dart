@@ -8,9 +8,9 @@ class DataManager {
   static final DataManager instance = DataManager._init();
   static Database? _database;
 
-  Map<String, dynamic> vocab = {};
-  Map<String, dynamic> accounts = {};
-  Map<String, dynamic> globalSettings = {};
+  Map<String, dynamic> vocab = <String, dynamic>{};
+  Map<String, dynamic> accounts = <String, dynamic>{};
+  Map<String, dynamic> globalSettings = <String, dynamic>{};
   Set<String> posCache = {};
 
   DataManager._init();
@@ -40,14 +40,14 @@ class DataManager {
     final db = await instance.database;
     final List<Map<String, dynamic>> maps = await db.query('Store');
 
-    Map<String, dynamic> localVocab = {};
-    Map<String, dynamic> localAccounts = {};
-    Map<String, dynamic> localGlobalSettings = {};
+    Map<String, dynamic> localVocab = <String, dynamic>{};
+    Map<String, dynamic> localAccounts = <String, dynamic>{};
+    Map<String, dynamic> localGlobalSettings = <String, dynamic>{};
 
     for (var row in maps) {
-      if (row['key'] == 'vocab') localVocab = jsonDecode(row['value'] as String);
-      if (row['key'] == 'accounts') localAccounts = jsonDecode(row['value'] as String);
-      if (row['key'] == 'global_settings') localGlobalSettings = jsonDecode(row['value'] as String);
+      if (row['key'] == 'vocab') localVocab = (jsonDecode(row['value'] as String) as Map).cast<String, dynamic>();
+      if (row['key'] == 'accounts') localAccounts = (jsonDecode(row['value'] as String) as Map).cast<String, dynamic>();
+      if (row['key'] == 'global_settings') localGlobalSettings = (jsonDecode(row['value'] as String) as Map).cast<String, dynamic>();
     }
 
     vocab = localVocab;
@@ -116,7 +116,11 @@ class DataManager {
     if (!accounts.containsKey(accId)) {
       accId = accounts.keys.isNotEmpty ? accounts.keys.first : "default";
     }
-    return accounts[accId] ?? {};
+    final acc = accounts[accId];
+    if (acc is Map) {
+      return acc.cast<String, dynamic>();
+    }
+    return <String, dynamic>{};
   }
 
   void rebuildPosCache() {
@@ -186,18 +190,18 @@ class DataManager {
 
   void updateWordStats(String accId, String wordText, bool isCorrect, [double timeSpent = 0]) {
     final acc = getAcc(accId);
-    acc['stats'] ??= {};
-    final stats = acc['stats'] as Map<String, dynamic>;
+    acc['stats'] ??= <String, dynamic>{};
+    final stats = (acc['stats'] as Map).cast<String, dynamic>();
     if (!stats.containsKey(wordText)) {
-      stats[wordText] = {
+      stats[wordText] = <String, dynamic>{
         "total": 0,
         "correct": 0,
         "wrong": 0,
         "cumulative_seconds": 0,
-        "history": []
+        "history": <dynamic>[]
       };
     }
-    final s = stats[wordText] as Map<String, dynamic>;
+    final s = (stats[wordText] as Map).cast<String, dynamic>();
     s["total"] = (s["total"] as int) + 1;
     if (isCorrect) {
       s["correct"] = (s["correct"] as int) + 1;
@@ -289,14 +293,14 @@ class DataManager {
       Map<String, dynamic> curr = vocab;
       for (int j = 0; j < i - 1; j++) {
         if (curr[path[j]] is Map) {
-          curr = curr[path[j]] as Map<String, dynamic>;
+          curr = (curr[path[j]] as Map).cast<String, dynamic>();
         } else {
           return;
         }
       }
       final keyToRemove = path[i - 1];
       if (curr[keyToRemove] is Map) {
-        final node = curr[keyToRemove] as Map<String, dynamic>;
+        final node = (curr[keyToRemove] as Map).cast<String, dynamic>();
         // Keep _type but if no other keys, it's empty
         bool isEmpty = node.keys.where((k) => k != '_type').isEmpty;
         if (isEmpty) {
