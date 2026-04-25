@@ -220,8 +220,11 @@ class DataManager {
     
     if (node.isNotEmpty) {
       for (var val in node.values) {
-        if (val is Map && (val.containsKey('单词') || val.containsKey('word'))) {
-          return false; // It's a file
+        if (val is Map) {
+          final mapVal = val;
+          if (mapVal.containsKey('单词') || mapVal.containsKey('word')) {
+            return false; // It's a file
+          }
         }
       }
       return true; // It's a folder
@@ -236,8 +239,11 @@ class DataManager {
     if (node.isNotEmpty) {
       // Try to find ANY word entry in the node to determine if it's a file
       for (var val in node.values) {
-        if (val is Map && (val.containsKey('单词') || val.containsKey('word'))) {
-          return true;
+        if (val is Map) {
+          final mapVal = val;
+          if (mapVal.containsKey('单词') || mapVal.containsKey('word')) {
+            return true;
+          }
         }
       }
     }

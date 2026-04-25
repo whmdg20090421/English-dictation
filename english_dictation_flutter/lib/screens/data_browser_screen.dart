@@ -219,7 +219,10 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
               trailing: IconButton(
                 icon: const Icon(Icons.info, color: Colors.yellow),
                 onPressed: () {
-                  Set<String> uWordSet = words.entries.where((e) => e.key != '_type').map((e) => (e.value['单词'] ?? e.value['word'] ?? '').toString()).toSet();
+                  Set<String> uWordSet = words.entries.where((e) => e.key != '_type').map((e) {
+                    final val = e.value as Map;
+                    return (val['单词'] ?? val['word'] ?? '').toString();
+                  }).toSet();
                   _showFolderStats("单词集: $key", uWordSet);
                 },
               ),

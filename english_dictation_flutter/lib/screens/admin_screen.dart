@@ -496,7 +496,7 @@ class _ImportExportTabState extends State<_ImportExportTab> {
         if (!target.containsKey(key)) {
           target[key] = value;
         } else if (target[key] is Map) {
-          _deepMerge(target[key], value);
+          _deepMerge(target[key] as Map, value);
         } else {
           target[key] = value; // Overwrite
         }
