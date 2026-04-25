@@ -325,7 +325,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     if (DataManager.instance.accounts.isEmpty) {
       return Scaffold(
-        backgroundColor: AppTheme.primaryDark,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -358,7 +357,6 @@ class _HomeScreenState extends State<HomeScreen> {
     int acc = totalPracticed > 0 ? ((totalCorrect / totalPracticed) * 100).toInt() : 0;
 
     return Scaffold(
-      backgroundColor: AppTheme.primaryDark,
       body: SafeArea(
         child: Stack(
           children: [

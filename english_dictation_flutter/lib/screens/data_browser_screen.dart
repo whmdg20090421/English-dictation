@@ -289,7 +289,6 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
   Widget build(BuildContext context) {
     if (DataManager.instance.vocab.isEmpty) {
       return Scaffold(
-        backgroundColor: AppTheme.primaryDark,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -301,7 +300,6 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.primaryDark,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

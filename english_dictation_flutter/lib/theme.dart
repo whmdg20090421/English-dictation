@@ -65,7 +65,7 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
       ),
-      tabBarTheme: const TabBarTheme(
+      tabBarTheme: const TabBarThemeData(
         labelColor: Colors.blue,
         unselectedLabelColor: Colors.black54,
         indicatorColor: Colors.blue,
@@ -114,7 +114,7 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
       ),
-      tabBarTheme: const TabBarTheme(
+      tabBarTheme: const TabBarThemeData(
         labelColor: accentCyan,
         unselectedLabelColor: Colors.white54,
         indicatorColor: accentCyan,
@@ -164,7 +164,7 @@ class AppTheme {
         shadowColor: cyberNeonPink,
         centerTitle: true,
       ),
-      tabBarTheme: const TabBarTheme(
+      tabBarTheme: const TabBarThemeData(
         labelColor: cyberNeonCyan,
         unselectedLabelColor: cyberNeonPink,
         indicatorColor: cyberNeonCyan,
