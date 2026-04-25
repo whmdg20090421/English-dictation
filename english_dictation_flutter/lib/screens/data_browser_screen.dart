@@ -196,87 +196,90 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
     );
   }
 
-  Widget _buildTree(Map<String, dynamic> node, List<String> path) {
+  Widget _buildTree(Map<String, dynamic> node, [List<String> path = const []]) {
     List<Widget> nodes = [];
     node.forEach((key, value) {
       if (key == '_type') return;
       final fullPath = [...path, key].join('/');
       
-      if (DataManager.isFile(value as Map<String, dynamic>)) {
-        final words = value;
-        nodes.add(
-          Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              key: PageStorageKey(fullPath),
-              initiallyExpanded: AppState.instance.browserExpandedPaths.contains(fullPath),
-              onExpansionChanged: (val) {
-                if (val) AppState.instance.browserExpandedPaths.add(fullPath);
-                else AppState.instance.browserExpandedPaths.remove(fullPath);
-              },
-              title: Text(key, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
-              leading: const Icon(Icons.description, color: Colors.purpleAccent),
-              trailing: IconButton(
-                icon: const Icon(Icons.info, color: Colors.yellow),
-                onPressed: () {
-                  Set<String> uWordSet = words.entries.where((e) => e.key != '_type').map((e) {
-                    final val = e.value as Map;
-                    return (val['单词'] ?? val['word'] ?? '').toString();
-                  }).toSet();
-                  _showFolderStats("单词集: $key", uWordSet);
+      if (value is Map) {
+        final Map<String, dynamic> valueMap = Map<String, dynamic>.from(value);
+        if (DataManager.isFile(valueMap)) {
+          final words = valueMap;
+          nodes.add(
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                key: PageStorageKey(fullPath),
+                initiallyExpanded: AppState.instance.browserExpandedPaths.contains(fullPath),
+                onExpansionChanged: (val) {
+                  if (val) AppState.instance.browserExpandedPaths.add(fullPath);
+                  else AppState.instance.browserExpandedPaths.remove(fullPath);
                 },
-              ),
-              children: words.entries.where((e) => e.key != '_type').map((e) {
-                final meta = e.value as Map<String, dynamic>;
-                final wordTxt = meta['单词'] ?? meta['word'] ?? '';
-                final st = _myStats[wordTxt] ?? {};
-                final totalC = st['total'] ?? 0;
-                final wrongC = st['wrong'] ?? 0;
+                title: Text(key, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
+                leading: const Icon(Icons.description, color: Colors.purpleAccent),
+                trailing: IconButton(
+                  icon: const Icon(Icons.info, color: Colors.yellow),
+                  onPressed: () {
+                    Set<String> uWordSet = words.entries.where((e) => e.key != '_type').map((e) {
+                      final val = e.value as Map;
+                      return (val['单词'] ?? val['word'] ?? '').toString();
+                    }).toSet();
+                    _showFolderStats("单词集: $key", uWordSet);
+                  },
+                ),
+                children: words.entries.where((e) => e.key != '_type').map((e) {
+                  final meta = e.value as Map;
+                  final wordTxt = meta['单词'] ?? meta['word'] ?? '';
+                  final st = _myStats[wordTxt] ?? {};
+                  final totalC = st['total'] ?? 0;
+                  final wrongC = st['wrong'] ?? 0;
 
-                return ListTile(
-                  contentPadding: const EdgeInsets.only(left: 48, right: 16),
-                  title: Text(wordTxt, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold)),
-                  subtitle: totalC > 0
-                      ? Text("测\${totalC}次 · 错\${wrongC}次", style: TextStyle(color: wrongC > 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 12))
-                      : const Text('未测试', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.info, color: Colors.blueAccent),
-                    onPressed: () => _showWordStats(wordTxt),
-                  ),
-                );
-              }).toList(),
-            ),
-          )
-        );
-      } else {
-        nodes.add(
-          Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              key: PageStorageKey(fullPath),
-              initiallyExpanded: AppState.instance.browserExpandedPaths.contains(fullPath),
-              onExpansionChanged: (val) {
-                if (val) AppState.instance.browserExpandedPaths.add(fullPath);
-                else AppState.instance.browserExpandedPaths.remove(fullPath);
-              },
-              title: Text(key, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
-              leading: const Icon(Icons.folder, color: Colors.amber),
-              trailing: IconButton(
-                icon: const Icon(Icons.info, color: Colors.yellow),
-                onPressed: () {
-                  final allWords = DataManager.getAllWords(value as Map<String, dynamic>);
-                  _showFolderStats("目录聚合: $fullPath", allWords.map((w) => w['单词'].toString()).toSet());
-                },
+                  return ListTile(
+                    contentPadding: const EdgeInsets.only(left: 48, right: 16),
+                    title: Text(wordTxt, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold)),
+                    subtitle: totalC > 0
+                        ? Text("测\${totalC}次 · 错\${wrongC}次", style: TextStyle(color: wrongC > 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 12))
+                        : const Text('未测试', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.info, color: Colors.blueAccent),
+                      onPressed: () => _showWordStats(wordTxt),
+                    ),
+                  );
+                }).toList(),
               ),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 16.0),
-                  child: _buildTree(value as Map<String, dynamic>, [...path, key]),
-                )
-              ],
-            ),
-          )
-        );
+            )
+          );
+        } else {
+          nodes.add(
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                key: PageStorageKey(fullPath),
+                initiallyExpanded: AppState.instance.browserExpandedPaths.contains(fullPath),
+                onExpansionChanged: (val) {
+                  if (val) AppState.instance.browserExpandedPaths.add(fullPath);
+                  else AppState.instance.browserExpandedPaths.remove(fullPath);
+                },
+                title: Text(key, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
+                leading: const Icon(Icons.folder, color: Colors.amber),
+                trailing: IconButton(
+                  icon: const Icon(Icons.info, color: Colors.yellow),
+                  onPressed: () {
+                    final allWords = DataManager.getAllWords(valueMap);
+                    _showFolderStats("目录聚合: $fullPath", allWords.map((w) => (w['单词'] ?? w['word'] ?? '').toString()).toSet());
+                  },
+                ),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16.0),
+                    child: _buildTree(valueMap, [...path, key]),
+                  )
+                ],
+              ),
+            )
+          );
+        }
       }
     });
     return Column(children: nodes);
@@ -297,30 +300,6 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
       );
     }
 
-    // Build tree map
-    Map<String, dynamic> tree = {};
-    DataManager.instance.vocab.forEach((bookPath, units) {
-      final parts = bookPath.split('/');
-      Map<String, dynamic> curr = tree;
-      List<String> pathSoFar = [];
-      for (var p in parts) {
-        pathSoFar.add(p);
-        if (!curr.containsKey(p)) {
-          curr[p] = {'_units': {}, '_book_path': pathSoFar.join('/'), 'children': <String, dynamic>{}};
-        }
-        curr = curr[p]['children'];
-      }
-    });
-
-    DataManager.instance.vocab.forEach((bookPath, units) {
-      final parts = bookPath.split('/');
-      Map<String, dynamic> curr = tree;
-      for (int i = 0; i < parts.length - 1; i++) {
-        curr = curr[parts[i]]['children'];
-      }
-      curr[parts.last]['_units'] = units;
-    });
-
     return Scaffold(
       backgroundColor: AppTheme.primaryDark,
       appBar: AppBar(
@@ -331,7 +310,7 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
-        child: _buildTree(tree),
+        child: _buildTree(DataManager.instance.vocab),
       ),
     );
   }

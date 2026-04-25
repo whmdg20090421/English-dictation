@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -7,6 +8,7 @@ import '../db/data_manager.dart';
 import '../app_state.dart';
 import '../utils/crypto_utils.dart';
 import '../sync/cloud_sync_service.dart';
+import '../theme.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -475,8 +477,8 @@ class _ImportExportTabState extends State<_ImportExportTab> {
               final unit = unitController.text.trim();
               if (book.isEmpty || unit.isEmpty) return;
               final vocab = DataManager.instance.vocab;
-              vocab[book] ??= {};
-              (vocab[book] as Map)[unit] ??= {};
+              vocab[book] ??= {'_type': 'folder'};
+              (vocab[book] as Map)[unit] ??= {'_type': 'file'};
               (vocab[book][unit] as Map).addAll(data);
               DataManager.instance.saveData();
               Navigator.pop(context);
