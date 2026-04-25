@@ -218,12 +218,11 @@ class DataManager {
     if (node.containsKey('_type') && node['_type'] == 'folder') return true;
     if (node.containsKey('_type') && node['_type'] == 'file') return false;
     
-    // If no type specified, guess: a file contains word items. 
-    // Word items are maps containing "单词"
     if (node.isNotEmpty) {
-      final firstVal = node.values.first;
-      if (firstVal is Map && firstVal.containsKey('单词')) {
-        return false; // It's a file
+      for (var val in node.values) {
+        if (val is Map && (val.containsKey('单词') || val.containsKey('word'))) {
+          return false; // It's a file
+        }
       }
       return true; // It's a folder
     }
@@ -235,9 +234,11 @@ class DataManager {
     if (node.containsKey('_type') && node['_type'] == 'folder') return false;
     
     if (node.isNotEmpty) {
-      final firstVal = node.values.first;
-      if (firstVal is Map && firstVal.containsKey('单词')) {
-        return true;
+      // Try to find ANY word entry in the node to determine if it's a file
+      for (var val in node.values) {
+        if (val is Map && (val.containsKey('单词') || val.containsKey('word'))) {
+          return true;
+        }
       }
     }
     return false;
@@ -248,10 +249,10 @@ class DataManager {
     void traverse(Map<String, dynamic> node) {
       if (isFile(node)) {
         node.forEach((key, value) {
-          if (key != '_type' && value is Map && value.containsKey('单词')) {
+          if (key != '_type' && value is Map && (value.containsKey('单词') || value.containsKey('word'))) {
             final meta = Map<String, dynamic>.from(value);
             meta['_uid'] = key;
-            meta['word'] = meta['单词'];
+            meta['word'] = meta['单词'] ?? meta['word'];
             if (!meta.containsKey('translation')) {
               for (var k in meta.keys) {
                 if (!["单词", "word", "_uid", "source_book", "_ask_pos", "_test_mode"].contains(k)) {

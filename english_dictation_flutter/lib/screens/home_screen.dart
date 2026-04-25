@@ -228,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final allWords = DataManager.getAllWords(DataManager.instance.vocab);
     
     for (var meta in allWords) {
-      final word = meta['单词'];
+      final word = meta['单词'] ?? meta['word'];
       if (word != null && myStats[word] != null && myStats[word]['wrong'] > 0) {
         mistakes.add(meta);
       }
@@ -279,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       itemCount: mistakes.length,
                       itemBuilder: (context, index) {
                         final m = mistakes[index];
-                        final word = m['单词'];
+                        final word = m['单词'] ?? m['word'];
                         final wrongCount = myStats[word]?['wrong'] ?? 0;
                         
                         return CheckboxListTile(

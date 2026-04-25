@@ -157,12 +157,13 @@ class _WordsTabState extends State<_WordsTab> {
   }
 
   void _showWordDialog(List<String> path, {String? wordId, Map<String, dynamic>? initialData}) {
-    final wordController = TextEditingController(text: initialData?['单词'] ?? '');
+    final initialWord = initialData?['单词'] ?? initialData?['word'] ?? '';
+    final wordController = TextEditingController(text: initialWord.toString());
     final posControllers = <PosController>[];
 
     if (initialData != null) {
       initialData.forEach((key, value) {
-        if (key != '单词' && key != '_uid' && key != 'source_book' && key != '_ask_pos' && key != '_test_mode' && key != '_type') {
+        if (key != '单词' && key != 'word' && key != '_uid' && key != 'source_book' && key != '_ask_pos' && key != '_test_mode' && key != '_type') {
           final pc = PosController();
           pc.pos.text = key;
           pc.meaning.text = value.toString();
@@ -256,9 +257,11 @@ class _WordsTabState extends State<_WordsTab> {
         title: Text('${path.last} (${words.length} 词)', style: const TextStyle(fontWeight: FontWeight.bold)),
         children: [
           ...words.map((wordEntry) {
+            final wordData = wordEntry.value as Map;
+            final displayWord = wordData['单词'] ?? wordData['word'] ?? '未知单词';
             return ListTile(
               contentPadding: const EdgeInsets.only(left: 40, right: 16),
-              title: Text(wordEntry.value['单词'] ?? ''),
+              title: Text(displayWord.toString()),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -426,9 +429,11 @@ class _ImportExportTabState extends State<_ImportExportTab> {
                 Navigator.pop(context);
                 bool isSingleUnit = false;
                 if (data.values.isNotEmpty) {
-                  final firstVal = data.values.first;
-                  if (firstVal is Map && firstVal.containsKey('单词')) {
-                    isSingleUnit = true;
+                  for (var val in data.values) {
+                    if (val is Map && (val.containsKey('单词') || val.containsKey('word'))) {
+                      isSingleUnit = true;
+                      break;
+                    }
                   }
                 }
 
@@ -485,13 +490,13 @@ class _ImportExportTabState extends State<_ImportExportTab> {
     );
   }
 
-  void _deepMerge(Map<String, dynamic> target, Map<String, dynamic> source) {
+  void _deepMerge(Map target, Map source) {
     source.forEach((key, value) {
-      if (value is Map<String, dynamic>) {
+      if (value is Map) {
         if (!target.containsKey(key)) {
           target[key] = value;
-        } else if (target[key] is Map<String, dynamic>) {
-          _deepMerge(target[key] as Map<String, dynamic>, value);
+        } else if (target[key] is Map) {
+          _deepMerge(target[key], value);
         } else {
           target[key] = value; // Overwrite
         }
