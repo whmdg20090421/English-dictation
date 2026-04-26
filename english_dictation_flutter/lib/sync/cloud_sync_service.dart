@@ -81,9 +81,7 @@ class CloudSyncService {
 
   // Derive a 32-byte key from the password using SHA-256
   encrypt.Key _deriveKey(String password) {
-    const envKey = String.fromEnvironment('ENCRYPTION_KEY');
-    final String keyToUse = envKey.isNotEmpty ? envKey : password;
-    final bytes = utf8.encode(keyToUse);
+    final bytes = utf8.encode(password);
     final digest = sha256.convert(bytes);
     return encrypt.Key(Uint8List.fromList(digest.bytes));
   }
