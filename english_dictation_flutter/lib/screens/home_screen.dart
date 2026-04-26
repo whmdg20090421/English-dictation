@@ -33,12 +33,12 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e, stack) {
       debugPrint('Error in _loadData: $e\n$stack');
       if (DataManager.instance.accounts.isEmpty) {
-        DataManager.instance.accounts['default'] = {
+        DataManager.instance.accounts['default'] = <String, dynamic>{
           "name": "默认账户",
           "role": "admin",
-          "history": [],
-          "stats": {},
-          "settings": {
+          "history": <dynamic>[],
+          "stats": <String, dynamic>{},
+          "settings": <String, dynamic>{
             "allow_backward": true,
             "allow_hint": false,
             "timer_lock": true,
@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
             "hide_test_config": false,
             "hint_delay": 5,
             "hint_limit": 0,
-            "folders": []
+            "folders": <dynamic>[]
           }
         };
       }
@@ -186,12 +186,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           if (name.isNotEmpty) {
                             final newId = DateTime.now().millisecondsSinceEpoch.toString();
                             final baseSettings = DataManager.instance.getAcc("default")["settings"] ?? {};
-                            DataManager.instance.accounts[newId] = {
+                            DataManager.instance.accounts[newId] = <String, dynamic>{
                               "name": name,
                               "role": role,
-                              "history": [],
-                              "stats": {},
-                              "settings": Map.from(baseSettings)
+                              "history": <dynamic>[],
+                              "stats": <String, dynamic>{},
+                              "settings": Map<String, dynamic>.from(baseSettings)
                             };
                             DataManager.instance.saveData().then((_) {
                               if (mounted) {

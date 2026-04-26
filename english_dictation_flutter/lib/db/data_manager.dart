@@ -55,14 +55,14 @@ class DataManager {
     globalSettings = localGlobalSettings;
 
     if (accounts.isEmpty) {
-      accounts['default'] = {
+      accounts['default'] = <String, dynamic>{
         "name": "默认账户",
         "role": "admin",
         "createdAt": DateTime.now().toIso8601String(),
-        "history": [],
-        "mistakes": [],
-        "stats": {},
-        "settings": {
+        "history": <dynamic>[],
+        "mistakes": <dynamic>[],
+        "stats": <String, dynamic>{},
+        "settings": <String, dynamic>{
           "allow_backward": true,
           "allow_hint": false,
           "timer_lock": true,
@@ -70,7 +70,7 @@ class DataManager {
           "hide_test_config": false,
           "hint_delay": 5,
           "hint_limit": 0,
-          "folders": []
+          "folders": <dynamic>[]
         }
       };
       await _saveToLocalDB();

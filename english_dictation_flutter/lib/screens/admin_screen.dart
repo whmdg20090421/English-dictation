@@ -145,7 +145,7 @@ class _WordsTabState extends State<_WordsTab> {
                     curr[p] ??= <String, dynamic>{};
                     curr = (curr[p] as Map).cast<String, dynamic>();
                   }
-                  curr[text] = {'_type': isFile ? 'file' : 'folder'};
+                  curr[text] = <String, dynamic>{'_type': isFile ? 'file' : 'folder'};
                 });
                 DataManager.instance.saveData();
               }
@@ -227,7 +227,7 @@ class _WordsTabState extends State<_WordsTab> {
                     
                     final wId = wordId ?? 'word_${DateTime.now().millisecondsSinceEpoch}';
                     
-                    Map<String, dynamic> newWordData = {'单词': text};
+                    Map<String, dynamic> newWordData = <String, dynamic>{'单词': text};
                     for (var pc in posControllers) {
                       if (pc.pos.text.isNotEmpty && pc.meaning.text.isNotEmpty) {
                         newWordData[pc.pos.text.trim()] = pc.meaning.text.trim();
@@ -477,8 +477,8 @@ class _ImportExportTabState extends State<_ImportExportTab> {
               final unit = unitController.text.trim();
               if (book.isEmpty || unit.isEmpty) return;
               final vocab = DataManager.instance.vocab;
-              vocab[book] ??= {'_type': 'folder'};
-              (vocab[book] as Map)[unit] ??= {'_type': 'file'};
+              vocab[book] ??= <String, dynamic>{'_type': 'folder'};
+              (vocab[book] as Map)[unit] ??= <String, dynamic>{'_type': 'file'};
               (vocab[book][unit] as Map).addAll(data);
               DataManager.instance.saveData();
               Navigator.pop(context);
@@ -741,7 +741,7 @@ class _SettingsTabState extends State<_SettingsTab> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
-              currentAcc['mistakes'] = [];
+              currentAcc['mistakes'] = <dynamic>[];
               DataManager.instance.saveData();
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已清空错题本记录')));
@@ -1035,7 +1035,7 @@ class _LogsTabState extends State<_LogsTab> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               final currentAcc = DataManager.instance.getAcc(AppState.instance.currentAccountId);
-              currentAcc['history'] = [];
+              currentAcc['history'] = <dynamic>[];
               DataManager.instance.saveData();
               setState(() {});
               Navigator.pop(context);
