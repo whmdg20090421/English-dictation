@@ -1,0 +1,7 @@
+- [ ] Entering an incorrect encryption key during cloud setup correctly shows an error and prevents proceeding.
+- [ ] The "or" text and "Create new user" button on AccountBindScreen are clearly visible against the dark background.
+- [ ] After binding a user, restarting the app automatically logs into that user without showing the account selection screen (if it's the only user) or remembers the last logged-in user.
+- [ ] Switching users or creating a new user prompts for the admin password.
+- [ ] Folder names (user names) and file names on WebDAV are encrypted and not readable in plaintext.
+- [ ] The Cloud File Manager correctly decrypts and displays the folder and file names in plaintext.
+- [ ] Changes are committed and pushed to GitHub, triggering a successful build.
