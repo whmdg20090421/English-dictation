@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../db/data_manager.dart';
 import '../app_state.dart';
-import '../theme.dart';
 import '../utils/crypto_utils.dart';
 import '../sync/cloud_sync_service.dart';
 

@@ -526,8 +526,11 @@ class _ImportExportTabState extends State<_ImportExportTab> {
       final dir = await getApplicationDocumentsDirectory();
       final file = File('\${dir.path}/backup.json');
       await file.writeAsString(jsonStr);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('备份已保存至: \${file.path}')));
+      if (!context.mounted) return;
+      if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('备份已保存至: \${file.path}')));
     } catch (e) {
+      if (!context.mounted) return; // ensure context is mounted
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('备份失败: \$e')));
     }
   }

@@ -8,7 +8,8 @@ import '../utils/crypto_utils.dart';
 import '../components/cloud_status_indicator.dart';
 
 class CloudSetupScreen extends StatefulWidget {
-  const CloudSetupScreen({super.key});
+  final bool isExistingCloud;
+  const CloudSetupScreen({super.key, this.isExistingCloud = false});
 
   @override
   State<CloudSetupScreen> createState() => _CloudSetupScreenState();
@@ -23,67 +24,97 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
   bool _isLoading = false;
 
   Future<void> _submit() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
+      if (_formKey.currentState!.validate()) {
+        setState(() {
+          _isLoading = true;
+        });
 
-      final encKey = _encPwdController.text;
-      
-      final encryptedAdminPwd = CryptoUtils.encryptPassword(_adminPwdController.text, encKey);
-      final encryptedGuestPwd = CryptoUtils.encryptPassword(_guestPwdController.text, encKey);
+        final encKey = _encPwdController.text;
 
-      final configData = {
-        'adminPassword': encryptedAdminPwd,
-        'guestPassword': encryptedGuestPwd,
-        'createdAt': DateTime.now().toIso8601String(),
-      };
+        if (widget.isExistingCloud) {
+          // Verify encryption password against cloud
+          final configData = await CloudSyncService().downloadConfig(encKey);
+          if (configData != null) {
+            // Password is correct, download data
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('encryption_password', encKey);
+            CloudSyncService().setEncryptionPassword(encKey);
+            await DataManager.instance.loadData();
+            
+            if (!mounted) return;
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const HomeScreen()),
+              );
+            }
+          } else {
+            if (!mounted) return;
+            setState(() {
+              _isLoading = false;
+            });
+            ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+              const SnackBar(content: Text('解密失败：数据已被其他密钥加密，输入的密钥不正确。若要重置，请删除云端配置文件。')),
+            );
+          }
+          return;
+        }
 
-      final success = await CloudSyncService().uploadConfig(
-        configData,
-        encKey,
-      );
+        final encryptedAdminPwd = CryptoUtils.encryptPassword(_adminPwdController.text, encKey);
+        final encryptedGuestPwd = CryptoUtils.encryptPassword(_guestPwdController.text, encKey);
 
-      setState(() {
-        _isLoading = false;
-      });
+        final configData = {
+          'adminPassword': encryptedAdminPwd,
+          'guestPassword': encryptedGuestPwd,
+          'createdAt': DateTime.now().toIso8601String(),
+        };
 
-      if (success) {
-        // Save encryption password locally
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('encryption_password', encKey);
-        CloudSyncService().setEncryptionPassword(encKey);
+        final success = await CloudSyncService().uploadConfig(
+          configData,
+          encKey,
+        );
 
-        // Also save admin/guest passwords to globalSettings so app logic uses them
-        DataManager.instance.globalSettings['password'] = encryptedAdminPwd;
-        DataManager.instance.globalSettings['guestPassword'] = encryptedGuestPwd;
-        
-        // Initial upload of existing data to cloud
-        await DataManager.instance.loadData(); // Load local data first, which will auto-initialize empty cloud
+        setState(() {
+          _isLoading = false;
+        });
 
-        if (!mounted) return;
-        
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
+        if (success) {
+          // Save encryption password locally
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('encryption_password', encKey);
+          CloudSyncService().setEncryptionPassword(encKey);
+
+          // Also save admin/guest passwords to globalSettings so app logic uses them
+          DataManager.instance.globalSettings['password'] = encryptedAdminPwd;
+          DataManager.instance.globalSettings['guestPassword'] = encryptedGuestPwd;
+
+          // Initial upload of existing data to cloud
+          await DataManager.instance.loadData(); // Load local data first, which will auto-initialize empty cloud
+
+          if (!mounted) return;
+
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+            );
+          }
         } else {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          if (!mounted) return;
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+            const SnackBar(content: Text('配置上传失败，请检查网络或WebDAV设置')),
           );
         }
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
-          const SnackBar(content: Text('配置上传失败，请检查网络或WebDAV设置')),
-        );
       }
     }
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('云端初始化配置'),
+        title: Text(widget.isExistingCloud ? '验证云端密钥' : '云端初始化配置'),
         leading: const CloudStatusIndicator(),
       ),
       body: Padding(
@@ -95,39 +126,45 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
             children: [
               const Icon(Icons.cloud_upload, size: 80, color: Colors.blue),
               const SizedBox(height: 20),
-              const Text(
-                '首次运行，请设置应用密码并同步至云端',
-                style: TextStyle(fontSize: 16),
+              Text(
+                widget.isExistingCloud ? '检测到云端已有数据，请输入加密密钥以解密' : '首次运行，请设置应用密码并同步至云端',
+                style: const TextStyle(fontSize: 16),
+                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 30),
-              TextFormField(
-                controller: _adminPwdController,
-                decoration: const InputDecoration(
-                  labelText: '管理员密码 (Admin Password)',
-                  border: OutlineInputBorder(),
+              const SizedBox(height: 40),
+              if (!widget.isExistingCloud) ...[
+                TextFormField(
+                  controller: _adminPwdController,
+                  decoration: const InputDecoration(
+                    labelText: '系统管理员密码',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.admin_panel_settings),
+                  ),
+                  obscureText: true,
+                  validator: (v) => v!.isEmpty ? '不可为空' : null,
                 ),
-                obscureText: true,
-                validator: (value) => value!.isEmpty ? '请输入管理员密码' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _guestPwdController,
-                decoration: const InputDecoration(
-                  labelText: '访客密码 (Guest Password)',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _guestPwdController,
+                  decoration: const InputDecoration(
+                    labelText: '访客账户密码',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  obscureText: true,
+                  validator: (v) => v!.isEmpty ? '不可为空' : null,
                 ),
-                obscureText: true,
-                validator: (value) => value!.isEmpty ? '请输入访客密码' : null,
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
               TextFormField(
                 controller: _encPwdController,
-                decoration: const InputDecoration(
-                  labelText: '数据加密密码 (Encryption Password)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: widget.isExistingCloud ? '数据加密密钥' : '数据加密密钥（用于云端加解密）',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.security),
                 ),
                 obscureText: true,
-                validator: (value) => value!.isEmpty ? '请输入加密密码' : null,
+                validator: (v) => v!.isEmpty ? '不可为空' : null,
               ),
               const SizedBox(height: 32),
               SizedBox(
@@ -137,7 +174,7 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
                   onPressed: _isLoading ? null : _submit,
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('保存配置到云端', style: TextStyle(fontSize: 18)),
+                      : Text(widget.isExistingCloud ? '解密并同步' : '完成并初始化云端'),
                 ),
               ),
             ],

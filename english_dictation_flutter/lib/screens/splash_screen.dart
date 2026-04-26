@@ -21,13 +21,23 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _checkConfig() async {
     // Optional: wait a moment for better UX
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     final prefs = await SharedPreferences.getInstance();
     final pwd = prefs.getString('encryption_password');
     if (pwd != null && pwd.isNotEmpty) {
       CloudSyncService().setEncryptionPassword(pwd);
+    } else {
+      // 如果本地没有密码，去云端检查是否已有配置
+      final hasCloudConfig = await CloudSyncService().checkConfigExists();
+      if (hasCloudConfig && mounted) {
+        // 去获取密码的页面
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const CloudSetupScreen(isExistingCloud: true)),
+        );
+        return;
+      }
     }
-    
+
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
