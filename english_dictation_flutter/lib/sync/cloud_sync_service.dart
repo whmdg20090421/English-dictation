@@ -225,6 +225,25 @@ class CloudSyncService {
     }
   }
 
+  // Get available cloud accounts
+  Future<List<String>> listCloudAccounts() async {
+    init();
+    try {
+      final dirPath = _basePath.endsWith('/') ? _basePath : '$_basePath/';
+      final files = await _service.readDir(dirPath);
+      final accounts = <String>[];
+      for (var file in files) {
+        if (file.isDirectory && file.name != '公共数据') {
+          accounts.add(file.name);
+        }
+      }
+      return accounts;
+    } catch (e) {
+      _logError('List cloud accounts error: $e');
+      return [];
+    }
+  }
+
   // Encrypt and upload public data
   Future<bool> uploadPublicData(Map<String, dynamic> data) async {
     return _uploadToPath(_publicDataFolder, _publicDataPath, data);

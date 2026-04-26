@@ -9,9 +9,7 @@ class CryptoUtils {
   static final _fixedIV = encrypt.IV.fromLength(12); // 12-byte zero IV for deterministic AES-GCM
 
   static encrypt.Key _deriveKey(String password) {
-    const envKey = String.fromEnvironment('ENCRYPTION_KEY');
-    final String keyToUse = envKey.isNotEmpty ? envKey : password;
-    final bytes = utf8.encode(keyToUse);
+    final bytes = utf8.encode(password);
     final digest = sha256.convert(bytes);
     return encrypt.Key(Uint8List.fromList(digest.bytes));
   }

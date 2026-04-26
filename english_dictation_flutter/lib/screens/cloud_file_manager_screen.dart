@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import '../sync/webdav_new/webdav_file.dart';
 import '../sync/cloud_sync_service.dart';
+import '../utils/crypto_utils.dart';
 
 class CloudFileManagerScreen extends StatefulWidget {
   const CloudFileManagerScreen({super.key});
@@ -250,6 +252,34 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
     }
   }
   
+  Future<String?> _promptForEncryptionPassword() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('输入数据加密密钥'),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '用于解密此文件',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('解密'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _viewOrEditFile(WebDavFile file) async {
     if (file.path.isEmpty) return;
     
@@ -266,7 +296,28 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
       return;
     }
     
-    final controller = TextEditingController(text: content);
+    String displayContent = content;
+    bool isEncrypted = file.name.endsWith('.json') && !content.trim().startsWith('{');
+    String? encryptionPassword;
+
+    if (isEncrypted) {
+      final pwd = await _promptForEncryptionPassword();
+      if (pwd == null || pwd.isEmpty) return;
+      
+      final decryptedMap = _syncService.decryptData(content, pwd);
+      if (decryptedMap == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+          const SnackBar(content: Text('解密失败，密钥错误或文件已损坏'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+      
+      displayContent = const JsonEncoder.withIndent('  ').convert(decryptedMap);
+      encryptionPassword = pwd;
+    }
+    
+    final controller = TextEditingController(text: displayContent);
     final newContent = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -295,9 +346,26 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
       ),
     );
     
-    if (newContent != null && newContent != content) {
+    if (newContent != null && newContent != displayContent) {
       setState(() => _isLoading = true);
-      final success = await _syncService.writeFileText(file.path, newContent);
+      String finalContentToSave = newContent;
+      
+      if (isEncrypted && encryptionPassword != null) {
+        try {
+          final map = jsonDecode(newContent) as Map<String, dynamic>;
+          finalContentToSave = _syncService.encryptData(map, encryptionPassword);
+        } catch (e) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+              const SnackBar(content: Text('JSON 格式错误，无法加密保存'), backgroundColor: Colors.red),
+            );
+          }
+          return;
+        }
+      }
+      
+      final success = await _syncService.writeFileText(file.path, finalContentToSave);
       if (success) {
         if (mounted) {
           ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(

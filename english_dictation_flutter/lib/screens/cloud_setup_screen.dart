@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../sync/cloud_sync_service.dart';
 import '../db/data_manager.dart';
 import 'home_screen.dart';
+import 'account_bind_screen.dart';
 import '../utils/crypto_utils.dart';
 
 import '../components/cloud_status_indicator.dart';
@@ -41,13 +42,21 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
             CloudSyncService().setEncryptionPassword(encKey);
             await DataManager.instance.loadData();
             
+            final isFirstInstall = DataManager.instance.accounts.length == 1 && DataManager.instance.accounts.containsKey('default');
+            
             if (!mounted) return;
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
             } else {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const HomeScreen()),
-              );
+              if (isFirstInstall) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => AccountBindScreen(encKey: encKey)),
+                );
+              } else {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const HomeScreen()),
+                );
+              }
             }
           } else {
             if (!mounted) return;
