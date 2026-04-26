@@ -175,10 +175,6 @@ class _AccountBindScreenState extends State<AccountBindScreen> {
                     width: double.infinity,
                     height: 50,
                     child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Theme.of(context).colorScheme.onSurface,
-                        side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
-                      ),
                       onPressed: _createNewAccount,
                       child: const Text('创建新用户'),
                     ),

@@ -35,14 +35,7 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
         if (widget.isExistingCloud) {
           // Verify encryption password against cloud
           final configData = await CloudSyncService().downloadConfig(encKey);
-          
-          // Check for required configuration keys to ensure correct decryption
-          final bool isValidDecryption = configData != null && 
-              configData.containsKey('version') && 
-              configData.containsKey('password') && 
-              configData.containsKey('guestPassword');
-
-          if (isValidDecryption) {
+          if (configData != null) {
             // Password is correct, download data
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString('encryption_password', encKey);
