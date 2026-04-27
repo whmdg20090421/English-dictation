@@ -32,16 +32,18 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
 
     int fTotal = 0, fCorrect = 0, fWrong = 0;
     for (var w in wordSet) {
-      final st = _myStats[w] ?? {};
-      fTotal += (st['total'] as int? ?? 0);
-      fCorrect += (st['correct'] as int? ?? 0);
-      fWrong += (st['wrong'] as int? ?? 0);
+      final st = _myStats[w];
+      if (st is Map) {
+        fTotal += (st['total'] as int? ?? 0);
+        fCorrect += (st['correct'] as int? ?? 0);
+        fWrong += (st['wrong'] as int? ?? 0);
+      }
     }
 
     List<Map<String, dynamic>> involvedHistory = [];
     for (var sess in _myHistory.reversed) {
       final details = sess['details'] as List? ?? [];
-      final matchDetails = details.where((d) => wordSet.contains(d['word'])).toList();
+      final matchDetails = details.where((d) => d is Map && wordSet.contains(d['word'])).toList();
       
       if (matchDetails.isNotEmpty) {
         int sessC = matchDetails.where((d) => d['correct'] == true).length;
@@ -93,14 +95,14 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
                           itemBuilder: (context, index) {
                             final h = involvedHistory[index];
                             return ExpansionTile(
-                              title: Text("\${h['time']} (抽查 \${h['involved_count']} 词)", style: const TextStyle(color: Colors.white, fontSize: 14)),
+                              title: Text("${h['time']} (抽查 ${h['involved_count']} 词)", style: const TextStyle(color: Colors.white, fontSize: 14)),
                               children: [
                                 Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text("对 \${h['correct']} | 错 \${h['wrong']}", style: TextStyle(color: Colors.purple[300], fontSize: 12)),
+                                      Text("对 ${h['correct']} | 错 ${h['wrong']}", style: TextStyle(color: Colors.purple[300], fontSize: 12)),
                                       const SizedBox(height: 4),
                                       Text((h['words'] as List).join(', '), style: const TextStyle(color: Colors.grey, fontSize: 12)),
                                     ],
@@ -123,7 +125,8 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
   }
 
   void _showWordStats(String word) {
-    final st = _myStats[word] ?? {};
+    final rawSt = _myStats[word];
+    final st = rawSt is Map ? rawSt : {};
     final hList = st['history'] as List? ?? [];
 
     showDialog(
@@ -145,14 +148,14 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("总次: \${st['total'] ?? 0}", style: TextStyle(color: Colors.blue[300], fontSize: 14)),
-                      Text("对: \${st['correct'] ?? 0}", style: const TextStyle(color: Colors.greenAccent, fontSize: 14)),
-                      Text("错: \${st['wrong'] ?? 0}", style: const TextStyle(color: Colors.redAccent, fontSize: 14)),
+                      Text("总次: ${st['total'] ?? 0}", style: TextStyle(color: Colors.blue[300], fontSize: 14)),
+                      Text("对: ${st['correct'] ?? 0}", style: const TextStyle(color: Colors.greenAccent, fontSize: 14)),
+                      Text("错: ${st['wrong'] ?? 0}", style: const TextStyle(color: Colors.redAccent, fontSize: 14)),
                     ],
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text("累计用时: \${st['cumulative_seconds'] ?? 0} 秒", style: TextStyle(color: Colors.yellow[300], fontSize: 12)),
+                Text("累计用时: ${st['cumulative_seconds'] ?? 0} 秒", style: TextStyle(color: Colors.yellow[300], fontSize: 12)),
                 const SizedBox(height: 16),
                 const Text('精确历史流水 (最近 50 条)', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
@@ -221,17 +224,18 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
                 trailing: IconButton(
                   icon: const Icon(Icons.info, color: Colors.yellow),
                   onPressed: () {
-                    Set<String> uWordSet = words.entries.where((e) => e.key != '_type').map((e) {
+                    Set<String> uWordSet = words.entries.where((e) => e.key != '_type' && e.value is Map).map((e) {
                       final val = e.value as Map;
                       return (val['单词'] ?? val['word'] ?? '').toString();
                     }).toSet();
                     _showFolderStats("单词集: $key", uWordSet);
                   },
                 ),
-                children: words.entries.where((e) => e.key != '_type').map((e) {
+                children: words.entries.where((e) => e.key != '_type' && e.value is Map).map((e) {
                   final meta = e.value as Map;
                   final wordTxt = meta['单词'] ?? meta['word'] ?? '';
-                  final st = _myStats[wordTxt] ?? {};
+                  final rawSt = _myStats[wordTxt];
+                  final st = rawSt is Map ? rawSt : {};
                   final totalC = st['total'] ?? 0;
                   final wrongC = st['wrong'] ?? 0;
 
@@ -239,7 +243,7 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
                     contentPadding: const EdgeInsets.only(left: 48, right: 16),
                     title: Text(wordTxt, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold)),
                     subtitle: totalC > 0
-                        ? Text("测\${totalC}次 · 错\${wrongC}次", style: TextStyle(color: wrongC > 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 12))
+                        ? Text("测${totalC}次 · 错${wrongC}次", style: TextStyle(color: wrongC > 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 12))
                         : const Text('未测试', style: TextStyle(color: Colors.grey, fontSize: 12)),
                     trailing: IconButton(
                       icon: const Icon(Icons.info, color: Colors.blueAccent),
@@ -293,7 +297,7 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
-          title: Text("[\${_currentAcc['name']}] 数据追踪", style: const TextStyle(fontWeight: FontWeight.bold)),
+          title: Text("[${_currentAcc['name']}] 数据追踪", style: const TextStyle(fontWeight: FontWeight.bold)),
         ),
         body: const Center(child: Text('词库为空，无法呈现数据', style: TextStyle(color: Colors.grey, fontSize: 16))),
       );
@@ -304,7 +308,7 @@ class _DataBrowserScreenState extends State<DataBrowserScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
-        title: Text("[\${_currentAcc['name']}] 数据追踪", style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text("[${_currentAcc['name']}] 数据追踪", style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

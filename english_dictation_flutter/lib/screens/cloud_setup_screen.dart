@@ -18,10 +18,19 @@ class CloudSetupScreen extends StatefulWidget {
 class _CloudSetupScreenState extends State<CloudSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _adminPwdController = TextEditingController();
+  final _adminPwdConfirmController = TextEditingController();
   final _guestPwdController = TextEditingController();
+  final _guestPwdConfirmController = TextEditingController();
   final _encPwdController = TextEditingController();
+  final _encPwdConfirmController = TextEditingController();
   
   bool _isLoading = false;
+  bool _obscureAdmin = true;
+  bool _obscureAdminConfirm = true;
+  bool _obscureGuest = true;
+  bool _obscureGuestConfirm = true;
+  bool _obscureEnc = true;
+  bool _obscureEncConfirm = true;
 
   Future<void> _submit() async {
       if (_formKey.currentState!.validate()) {
@@ -39,7 +48,15 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString('encryption_password', encKey);
             CloudSyncService().setEncryptionPassword(encKey);
+            
+            // Load public and personal data
             await DataManager.instance.loadData();
+            
+            // IMPORTANT: Overwrite local globalSettings with the correct passwords from configData
+            // so they are not wiped out by loadData() syncing public data without passwords.
+            DataManager.instance.globalSettings['password'] = configData['adminPassword'];
+            DataManager.instance.globalSettings['guestPassword'] = configData['guestPassword'];
+            await DataManager.instance.saveData();
             
             if (!mounted) return;
             if (Navigator.of(context).canPop()) {
@@ -75,24 +92,24 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
           encKey,
         );
 
-        setState(() {
-          _isLoading = false;
-        });
-
         if (success) {
           // Save encryption password locally
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('encryption_password', encKey);
           CloudSyncService().setEncryptionPassword(encKey);
 
-          // Also save admin/guest passwords to globalSettings so app logic uses them
-          DataManager.instance.globalSettings['password'] = encryptedAdminPwd;
-          DataManager.instance.globalSettings['guestPassword'] = encryptedGuestPwd;
-
           // Initial upload of existing data to cloud
           await DataManager.instance.loadData(); // Load local data first, which will auto-initialize empty cloud
+          
+          // IMPORTANT: Also save admin/guest passwords to globalSettings so app logic uses them
+          DataManager.instance.globalSettings['password'] = encryptedAdminPwd;
+          DataManager.instance.globalSettings['guestPassword'] = encryptedGuestPwd;
+          await DataManager.instance.saveData();
 
           if (!mounted) return;
+          setState(() {
+            _isLoading = false;
+          });
 
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
@@ -103,6 +120,9 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
           }
         } else {
           if (!mounted) return;
+          setState(() {
+            _isLoading = false;
+          });
           ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
             const SnackBar(content: Text('配置上传失败，请检查网络或WebDAV设置')),
           );
@@ -117,13 +137,14 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
         title: Text(widget.isExistingCloud ? '验证云端密钥' : '云端初始化配置'),
         leading: const CloudStatusIndicator(),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
               const Icon(Icons.cloud_upload, size: 80, color: Colors.blue),
               const SizedBox(height: 20),
               Text(
@@ -135,24 +156,70 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
               if (!widget.isExistingCloud) ...[
                 TextFormField(
                   controller: _adminPwdController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: '系统管理员密码',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.admin_panel_settings),
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.admin_panel_settings),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureAdmin ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _obscureAdmin = !_obscureAdmin),
+                    ),
                   ),
-                  obscureText: true,
+                  obscureText: _obscureAdmin,
                   validator: (v) => v!.isEmpty ? '不可为空' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
-                  controller: _guestPwdController,
-                  decoration: const InputDecoration(
-                    labelText: '访客账户密码',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
+                  controller: _adminPwdConfirmController,
+                  decoration: InputDecoration(
+                    labelText: '确认管理员密码',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.admin_panel_settings_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureAdminConfirm ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _obscureAdminConfirm = !_obscureAdminConfirm),
+                    ),
                   ),
-                  obscureText: true,
+                  obscureText: _obscureAdminConfirm,
+                  validator: (v) {
+                    if (v!.isEmpty) return '不可为空';
+                    if (v != _adminPwdController.text) return '两次输入的密码不一致';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _guestPwdController,
+                  decoration: InputDecoration(
+                    labelText: '访客账户密码',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.person),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureGuest ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _obscureGuest = !_obscureGuest),
+                    ),
+                  ),
+                  obscureText: _obscureGuest,
                   validator: (v) => v!.isEmpty ? '不可为空' : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _guestPwdConfirmController,
+                  decoration: InputDecoration(
+                    labelText: '确认访客密码',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.person_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureGuestConfirm ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _obscureGuestConfirm = !_obscureGuestConfirm),
+                    ),
+                  ),
+                  obscureText: _obscureGuestConfirm,
+                  validator: (v) {
+                    if (v!.isEmpty) return '不可为空';
+                    if (v != _guestPwdController.text) return '两次输入的密码不一致';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
               ],
@@ -162,10 +229,34 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
                   labelText: widget.isExistingCloud ? '数据加密密钥' : '数据加密密钥（用于云端加解密）',
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.security),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscureEnc ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => _obscureEnc = !_obscureEnc),
+                  ),
                 ),
-                obscureText: true,
+                obscureText: _obscureEnc,
                 validator: (v) => v!.isEmpty ? '不可为空' : null,
               ),
+              const SizedBox(height: 16),
+              if (!widget.isExistingCloud)
+                TextFormField(
+                  controller: _encPwdConfirmController,
+                  decoration: InputDecoration(
+                    labelText: '确认加密密钥',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.security_update_good),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureEncConfirm ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _obscureEncConfirm = !_obscureEncConfirm),
+                    ),
+                  ),
+                  obscureText: _obscureEncConfirm,
+                  validator: (v) {
+                    if (v!.isEmpty) return '不可为空';
+                    if (v != _encPwdController.text) return '两次输入的密钥不一致';
+                    return null;
+                  },
+                ),
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
@@ -181,14 +272,18 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
           ),
         ),
       ),
+      ),
     );
   }
 
   @override
   void dispose() {
     _adminPwdController.dispose();
+    _adminPwdConfirmController.dispose();
     _guestPwdController.dispose();
+    _guestPwdConfirmController.dispose();
     _encPwdController.dispose();
+    _encPwdConfirmController.dispose();
     super.dispose();
   }
 }

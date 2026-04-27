@@ -175,71 +175,60 @@ class DialogUtils {
 
   static void promptAccountDialog(BuildContext context, Function(String name, String role) callback) {
     final TextEditingController controller = TextEditingController();
-    String selectedRole = 'user';
 
     showDialog(
       context: context,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              backgroundColor: Theme.of(context).cardColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-                side: BorderSide(color: Theme.of(context).dividerColor, width: 1),
+        return AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+            side: BorderSide(color: Theme.of(context).dividerColor, width: 1),
+          ),
+          title: Text('新建账户', style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontSize: 20, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                decoration: InputDecoration(labelText: '输入姓名/昵称', labelStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
               ),
-              title: Text('新建账户', style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontSize: 20, fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: controller,
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
-                    decoration: InputDecoration(labelText: '输入姓名/昵称', labelStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Text('角色:', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
-                      const SizedBox(width: 16),
-                      DropdownButton<String>(
-                        value: selectedRole,
-                        dropdownColor: Theme.of(context).cardColor,
-                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
-                        items: const [
-                          DropdownMenuItem(value: 'user', child: Text('普通用户')),
-                          DropdownMenuItem(value: 'admin', child: Text('管理员')),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setStateDialog(() => selectedRole = val);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(backgroundColor: Colors.grey[500]),
+              child: const Text('取消', style: TextStyle(color: Colors.white)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.isNotEmpty) {
+                  Navigator.pop(context);
+                  callback(text, 'user');
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[500]),
+              child: const Text('添加普通用户', style: TextStyle(color: Colors.white)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.isNotEmpty) {
+                  Navigator.pop(context);
+                  callback(text, 'admin');
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent.withOpacity(0.8),
+                foregroundColor: Colors.white,
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: TextButton.styleFrom(backgroundColor: Colors.grey[500]),
-                  child: const Text('取消', style: TextStyle(color: Colors.white)),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final text = controller.text.trim();
-                    if (text.isNotEmpty) {
-                      Navigator.pop(context);
-                      callback(text, selectedRole);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[500]),
-                  child: const Text('确认', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            );
-          }
+              child: const Text('添加管理员'),
+            ),
+          ],
         );
       },
     );
