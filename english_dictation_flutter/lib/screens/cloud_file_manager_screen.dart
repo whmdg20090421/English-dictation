@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import '../sync/webdav_new/webdav_file.dart';
 import '../sync/cloud_sync_service.dart';
+import '../app_state.dart';
+import '../db/data_manager.dart';
 
 class CloudFileManagerScreen extends StatefulWidget {
   const CloudFileManagerScreen({super.key});
@@ -14,11 +17,72 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
   String _currentPath = '/英语听写';
   List<WebDavFile> _files = [];
   bool _isLoading = true;
+  bool _isAuthenticated = false;
 
   @override
   void initState() {
     super.initState();
-    _loadFiles();
+    _checkAdminAccess();
+  }
+
+  Future<void> _checkAdminAccess() async {
+    final appState = AppState.instance;
+    final currentAcc = DataManager.instance.getAcc(appState.currentAccountId);
+    if (currentAcc['role'] != 'admin') {
+      if (mounted) {
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+          const SnackBar(content: Text('非管理员账户无法访问')),
+        );
+        Navigator.pop(context);
+      }
+      return;
+    }
+    
+    // Prompt for password
+    final passwordController = TextEditingController();
+    final pwd = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('管理员验证'),
+        content: TextField(
+          controller: passwordController,
+          obscureText: true,
+          decoration: const InputDecoration(hintText: '请输入加密密码'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, passwordController.text),
+            child: const Text('确认'),
+          ),
+        ],
+      ),
+    );
+
+    if (pwd != null && pwd.isNotEmpty) {
+      // Very simple validation check: check if it matches current encryption password or can decrypt config
+      final correctPwd = _syncService.encryptionPassword;
+      if (pwd == correctPwd) {
+        setState(() {
+          _isAuthenticated = true;
+        });
+        _loadFiles();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+            const SnackBar(content: Text('密码错误')),
+          );
+          Navigator.pop(context);
+        }
+      }
+    } else {
+      if (mounted) Navigator.pop(context);
+    }
   }
 
   Future<void> _loadFiles() async {
@@ -254,23 +318,37 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
     if (file.path.isEmpty) return;
     
     setState(() => _isLoading = true);
-    final content = await _syncService.readFileText(file.path);
+    final contentBytes = await _syncService.readFileText(file.path);
     
     if (!mounted) return;
     setState(() => _isLoading = false);
     
-    if (content == null) {
+    if (contentBytes == null) {
       ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
-        const SnackBar(content: Text('无法读取文件内容（可能不是文本文件）'), backgroundColor: Colors.red),
+        const SnackBar(content: Text('无法读取文件内容'), backgroundColor: Colors.red),
       );
       return;
+    }
+
+    String content = contentBytes;
+    bool isEncrypted = false;
+    
+    // Try to decrypt if it looks like a base64 encrypted payload
+    try {
+      final decrypted = _syncService.decryptData(contentBytes, _syncService.encryptionPassword!);
+      if (decrypted != null) {
+        content = const JsonEncoder.withIndent('  ').convert(decrypted);
+        isEncrypted = true;
+      }
+    } catch (e) {
+      // Not encrypted or decryption failed, treat as plain text
     }
     
     final controller = TextEditingController(text: content);
     final newContent = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('编辑文件 - ${file.name}'),
+        title: Text('编辑文件 - ${file.name}${isEncrypted ? ' (已解密)' : ' (明文)'}'),
         content: SizedBox(
           width: double.maxFinite,
           child: TextField(
@@ -297,7 +375,22 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
     
     if (newContent != null && newContent != content) {
       setState(() => _isLoading = true);
-      final success = await _syncService.writeFileText(file.path, newContent);
+      
+      String contentToSave = newContent;
+      if (isEncrypted) {
+        try {
+          final jsonData = jsonDecode(newContent);
+          contentToSave = _syncService.encryptData(jsonData, _syncService.encryptionPassword!);
+        } catch (e) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+            const SnackBar(content: Text('保存失败: JSON 格式错误，无法重新加密'), backgroundColor: Colors.red),
+          );
+          return;
+        }
+      }
+      
+      final success = await _syncService.writeFileText(file.path, contentToSave);
       if (success) {
         if (mounted) {
           ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(

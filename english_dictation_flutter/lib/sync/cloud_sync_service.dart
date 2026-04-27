@@ -178,14 +178,32 @@ class CloudSyncService {
     }
   }
 
+  String encryptUsername(String username, String password) {
+    final key = _deriveKey(password);
+    final iv = encrypt.IV.fromSecureRandom(12);
+    final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.gcm));
+    final encrypted = encrypter.encrypt(username, iv: iv);
+    
+    final combined = Uint8List(iv.bytes.length + encrypted.bytes.length);
+    combined.setAll(0, iv.bytes);
+    combined.setAll(iv.bytes.length, encrypted.bytes);
+    
+    // Replace slashes so it's a valid path part
+    return base64UrlEncode(combined).replaceAll('=', '');
+  }
+
   // Get personal data path
   String _getPersonalDataPath(String username) {
-    return '$_basePath/$username/数据/数据.json';
+    if (_encryptionPassword == null) return '$_basePath/$username/数据/数据.json';
+    final encName = encryptUsername(username, _encryptionPassword!);
+    return '$_basePath/$encName/数据/数据.json';
   }
 
   // Get personal data folder
   String _getPersonalDataFolder(String username) {
-    return '$_basePath/$username/数据';
+    if (_encryptionPassword == null) return '$_basePath/$username/数据';
+    final encName = encryptUsername(username, _encryptionPassword!);
+    return '$_basePath/$encName/数据';
   }
 
   // Ensure directories exist

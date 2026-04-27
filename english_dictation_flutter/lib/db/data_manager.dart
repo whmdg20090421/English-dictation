@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'package:path/path.dart';
 import '../sync/cloud_sync_service.dart';
 import '../app_state.dart';
@@ -24,7 +24,8 @@ class DataManager {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    final String password = CloudSyncService().encryptionPassword ?? 'default_fallback_password_if_null';
+    return await openDatabase(path, password: password, version: 1, onCreate: _createDB);
   }
 
   Future _createDB(Database db, int version) async {
