@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../providers/dictation_provider.dart';
+import '../../components/animations.dart';
 import 'interim_report_screen.dart';
 
 class TestingScreen extends StatefulWidget {
@@ -27,6 +28,9 @@ class _TestingScreenState extends State<TestingScreen> {
 
   // POS state
   Set<String> _selectedPos = {};
+
+  final GlobalKey<ShakeWidgetState> _shakeKey = GlobalKey<ShakeWidgetState>();
+  final GlobalKey<FlashWidgetState> _flashKey = GlobalKey<FlashWidgetState>();
 
   @override
   void initState() {
@@ -110,6 +114,14 @@ class _TestingScreenState extends State<TestingScreen> {
     return rawAns.trim().toLowerCase() == target.trim().toLowerCase();
   }
 
+  void _triggerAnimation(bool isCorrect) {
+    if (isCorrect) {
+      _flashKey.currentState?.flash();
+    } else {
+      _shakeKey.currentState?.shake();
+    }
+  }
+
   void _submitSpelling() {
     if (_provider.isSubmitting) return;
     _provider.isSubmitting = true;
@@ -118,6 +130,8 @@ class _TestingScreenState extends State<TestingScreen> {
     final isCorrect = _checkSpelling(_spellingText, target);
     final qStr = meta['translation'] as String? ?? "";
     
+    _triggerAnimation(isCorrect);
+
     Future.delayed(const Duration(milliseconds: 500), () {
       _provider.isSubmitting = false;
       _provider.recordAnswerAndNext(isCorrect, 'spelling', qStr, _spellingText, false, [target], isCorrect ? 1.0 : 0.0);
@@ -136,9 +150,11 @@ class _TestingScreenState extends State<TestingScreen> {
     final List<String> expectedPos = validPosList.isNotEmpty ? validPosList : ['n.']; 
     
     bool isCorrect = _selectedPos.isNotEmpty; // simplistic check
-    final ansStr = _selectedPos.isNotEmpty ? _selectedPos.join(',') : "未选择";
-    
-    Future.delayed(const Duration(milliseconds: 500), () {
+      final ansStr = _selectedPos.isNotEmpty ? _selectedPos.join(',') : "未选择";
+      
+      _triggerAnimation(isCorrect);
+
+      Future.delayed(const Duration(milliseconds: 500), () {
       _provider.isSubmitting = false;
       _provider.recordAnswerAndNext(isCorrect, 'pos', target, ansStr, false, expectedPos, isCorrect ? 1.0 : 0.0);
       _loadCurrentQuestionState();
@@ -155,9 +171,11 @@ class _TestingScreenState extends State<TestingScreen> {
     final validTranslations = expected.split(RegExp(r'[,;]')).map((e) => e.trim()).toList();
     
     final ans = _transController.text.trim();
-    final isCorrect = validTranslations.contains(ans);
-    
-    Future.delayed(const Duration(milliseconds: 500), () {
+      final isCorrect = validTranslations.contains(ans);
+      
+      _triggerAnimation(isCorrect);
+
+      Future.delayed(const Duration(milliseconds: 500), () {
       _provider.isSubmitting = false;
       _provider.recordAnswerAndNext(isCorrect, 'translation', target, ans, !isCorrect, validTranslations, isCorrect ? 1.0 : 0.0);
       _loadCurrentQuestionState();
@@ -193,8 +211,12 @@ class _TestingScreenState extends State<TestingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1E1E2C),
+    return FlashWidget(
+      key: _flashKey,
+      child: ShakeWidget(
+        key: _shakeKey,
+        child: Scaffold(
+          backgroundColor: const Color(0xFF1E1E2C),
       appBar: AppBar(
         title: Consumer<DictationProvider>(
           builder: (context, prov, child) => Text("${prov.currentQIndex + 1}/${prov.testQueue.length}"),
@@ -271,7 +293,9 @@ class _TestingScreenState extends State<TestingScreen> {
             ),
           );
         }
+        ),
       ),
+    ),
     );
   }
 
