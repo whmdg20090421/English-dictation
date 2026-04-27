@@ -25,7 +25,15 @@ class DataManager {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
     final String password = CloudSyncService().encryptionPassword ?? 'default_fallback_password_if_null';
-    return await openDatabase(path, password: password, version: 1, onCreate: _createDB);
+    
+    try {
+      return await openDatabase(path, password: password, version: 1, onCreate: _createDB);
+    } catch (e) {
+      print("Error opening database (possibly unencrypted or wrong key): $e");
+      // If opening fails, delete the corrupted/unencrypted database and recreate it.
+      await deleteDatabase(path);
+      return await openDatabase(path, password: password, version: 1, onCreate: _createDB);
+    }
   }
 
   Future _createDB(Database db, int version) async {
