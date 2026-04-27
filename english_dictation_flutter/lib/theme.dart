@@ -60,8 +60,8 @@ class AppTheme {
       primaryColor: Colors.blue,
       scaffoldBackgroundColor: Colors.white,
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
         elevation: 0,
         centerTitle: true,
       ),
@@ -95,10 +95,10 @@ class AppTheme {
         ),
       ),
       textTheme: const TextTheme(
-        headlineLarge: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
-        titleLarge: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
-        bodyLarge: TextStyle(color: Colors.black87),
-        bodyMedium: TextStyle(color: Colors.black54),
+        headlineLarge: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        titleLarge: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+        bodyLarge: TextStyle(color: Colors.black),
+        bodyMedium: TextStyle(color: Colors.black87),
       ),
     );
   }
@@ -106,26 +106,26 @@ class AppTheme {
   static ThemeData get darkTheme {
     return ThemeData(
       brightness: Brightness.dark,
-      primaryColor: primaryBlue,
-      scaffoldBackgroundColor: primaryBlue,
+      primaryColor: Colors.black,
+      scaffoldBackgroundColor: Colors.black,
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white70,
         elevation: 0,
         centerTitle: true,
       ),
       tabBarTheme: const TabBarThemeData(
-        labelColor: accentCyan,
+        labelColor: Colors.white,
         unselectedLabelColor: Colors.white54,
-        indicatorColor: accentCyan,
+        indicatorColor: Colors.white,
       ),
       colorScheme: const ColorScheme.dark(
-        primary: primaryBlue,
-        secondary: accentCyan,
-        surface: secondaryBlue,
+        primary: Colors.black,
+        secondary: Colors.white70,
+        surface: Color(0xFF111111),
       ),
       cardTheme: CardThemeData(
-        color: Colors.white.withOpacity(0.05),
+        color: const Color(0xFF1A1A1A),
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -134,18 +134,18 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: accentCyan.withOpacity(0.2),
-          foregroundColor: accentCyan,
+          backgroundColor: Colors.white.withOpacity(0.1),
+          foregroundColor: Colors.white70,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: accentCyan.withOpacity(0.5)),
+            side: BorderSide(color: Colors.white.withOpacity(0.3)),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         ),
       ),
       textTheme: const TextTheme(
-        headlineLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        headlineLarge: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+        titleLarge: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
         bodyLarge: TextStyle(color: Colors.white70),
         bodyMedium: TextStyle(color: Colors.white60),
       ),
@@ -156,12 +156,11 @@ class AppTheme {
     return ThemeData(
       brightness: Brightness.dark,
       primaryColor: cyberBackground,
-      scaffoldBackgroundColor: cyberBackground,
+      scaffoldBackgroundColor: Colors.transparent, // Background will be handled by a Container with gradient
       appBarTheme: const AppBarTheme(
-        backgroundColor: cyberSurface,
-        foregroundColor: cyberNeonPink,
-        elevation: 4,
-        shadowColor: cyberNeonPink,
+        backgroundColor: Colors.transparent,
+        foregroundColor: cyberNeonCyan,
+        elevation: 0,
         centerTitle: true,
       ),
       tabBarTheme: const TabBarThemeData(
@@ -172,36 +171,36 @@ class AppTheme {
       colorScheme: const ColorScheme.dark(
         primary: cyberNeonCyan,
         secondary: cyberNeonPink,
-        surface: cyberSurface,
+        surface: Colors.transparent,
       ),
       cardTheme: CardThemeData(
-        color: cyberSurface,
+        color: cyberSurface.withOpacity(0.6),
         elevation: 8,
         shadowColor: cyberNeonCyan.withOpacity(0.5),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: cyberNeonPink, width: 1.5),
+          side: const BorderSide(color: cyberNeonCyan, width: 1.5),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: cyberNeonCyan.withOpacity(0.2),
-          foregroundColor: cyberNeonYellow,
+          foregroundColor: cyberNeonCyan,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4), // sharper corners for cyberpunk
+            borderRadius: BorderRadius.circular(4),
             side: const BorderSide(color: cyberNeonCyan, width: 2),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         ),
       ),
       textTheme: const TextTheme(
-        headlineLarge: TextStyle(color: cyberNeonPink, fontWeight: FontWeight.bold, shadows: [Shadow(color: cyberNeonPink, blurRadius: 10)]),
+        headlineLarge: TextStyle(color: cyberNeonCyan, fontWeight: FontWeight.bold, shadows: [Shadow(color: cyberNeonCyan, blurRadius: 10)]),
         titleLarge: TextStyle(color: cyberNeonCyan, fontWeight: FontWeight.w600, shadows: [Shadow(color: cyberNeonCyan, blurRadius: 5)]),
-        bodyLarge: TextStyle(color: cyberNeonYellow),
-        bodyMedium: TextStyle(color: Colors.white70),
+        bodyLarge: TextStyle(color: cyberNeonCyan),
+        bodyMedium: TextStyle(color: cyberNeonCyan),
       ),
       inputDecorationTheme: const InputDecorationTheme(
-        labelStyle: TextStyle(color: cyberNeonPink),
+        labelStyle: TextStyle(color: cyberNeonCyan),
         enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: cyberNeonCyan)),
         focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: cyberNeonPink, width: 2)),
       ),

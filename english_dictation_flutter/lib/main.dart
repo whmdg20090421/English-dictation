@@ -113,6 +113,25 @@ class EnglishDictationApp extends StatelessWidget {
           theme: themeProvider.currentThemeData,
           home: const SplashScreen(),
           debugShowCheckedModeBanner: false,
+          builder: (context, child) {
+            if (themeProvider.themeMode == ThemeModeType.cyberpunk) {
+              return Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Color(0xFF0D0221), // Deep dark purple
+                      Color(0xFF1A0B2E), // Darker purple
+                      Color(0xFF0F0014), // Almost black purple
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: child,
+              );
+            }
+            return child!;
+          },
         );
       },
     );
