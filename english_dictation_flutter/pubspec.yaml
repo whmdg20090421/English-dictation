@@ -43,6 +43,7 @@ dependencies:
   flutter_secure_storage: ^9.0.0
   encrypt: ^5.0.3
   crypto: ^3.0.7
+  cryptography: ^2.7.0
   path_provider: ^2.1.5
   dio: ^5.4.0
   xml: ^6.3.0

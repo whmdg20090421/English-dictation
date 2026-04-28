@@ -3,18 +3,14 @@ import '../db/data_manager.dart';
 import '../app_state.dart';
 import '../utils/crypto_utils.dart';
 import '../sync/cloud_sync_service.dart';
+import '../utils/rate_limiter.dart';
 
 class DialogUtils {
-  static String getAdminPwd() {
-    final rawPwd = DataManager.instance.globalSettings['password'] ?? '';
-    return rawPwd.toString().trim();
-  }
-
   static void requirePassword(BuildContext context, VoidCallback callback, {bool allowGuest = false}) {
     if (AppState.instance.authDialogOpen) return;
     AppState.instance.authDialogOpen = true;
 
-    final guestPwd = DataManager.instance.globalSettings['guestPassword']?.toString() ?? '';
+    final guestPwd = DataManager.instance.globalSettings['guestHash']?.toString() ?? '';
     final title = allowGuest && guestPwd.isNotEmpty
         ? '安全验证 (支持访客)'
         : '管理员安全验证';
@@ -42,8 +38,8 @@ class DialogUtils {
               enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Theme.of(context).dividerColor, width: 2)),
               focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2)),
             ),
-            onSubmitted: (_) {
-              _verifyPassword(context, controller.text, allowGuest, callback);
+            onSubmitted: (_) async {
+              await _verifyPassword(context, controller.text, allowGuest, callback);
             },
           ),
           actions: [
@@ -56,8 +52,8 @@ class DialogUtils {
               child: const Text('取消', style: TextStyle(color: Colors.white)),
             ),
             ElevatedButton(
-              onPressed: () {
-                _verifyPassword(context, controller.text, allowGuest, callback);
+              onPressed: () async {
+                await _verifyPassword(context, controller.text, allowGuest, callback);
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[500]),
               child: const Text('验证', style: TextStyle(color: Colors.white)),
@@ -70,31 +66,44 @@ class DialogUtils {
     });
   }
 
-  static void _verifyPassword(BuildContext context, String input, bool allowGuest, VoidCallback callback) {
-    final sysPwdEncrypted = getAdminPwd();
-    final guestPwdEncrypted = (DataManager.instance.globalSettings['guestPassword']?.toString() ?? '').trim();
-    final encKey = CloudSyncService().encryptionPassword ?? '';
+  static Future<void> _verifyPassword(BuildContext context, String input, bool allowGuest, VoidCallback callback) async {
+    if (await RateLimiter.isLockedOut()) {
+      final remaining = await RateLimiter.getLockoutRemainingTime();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+        SnackBar(content: Text('尝试次数过多，请在 $remaining 后重试'), backgroundColor: Colors.red),
+      );
+      return;
+    }
 
-    // If sysPwdEncrypted is empty, we assume no password is set, fallback to '123456' matching
-    // Wait, let's just encrypt the input and compare
+    final sysHash = (DataManager.instance.globalSettings['adminHash']?.toString() ?? '').trim();
+    final sysSalt = DataManager.instance.globalSettings['adminSalt'] as List<dynamic>?;
+
+    final guestHash = (DataManager.instance.globalSettings['guestHash']?.toString() ?? '').trim();
+    final guestSalt = DataManager.instance.globalSettings['guestSalt'] as List<dynamic>?;
+
     bool isAdmin = false;
     bool isGuest = false;
 
-    if (sysPwdEncrypted.isEmpty) {
+    if (sysHash.isEmpty || sysSalt == null) {
+       // fallback if no hash is set
        isAdmin = input == '123456';
     } else {
-       isAdmin = CryptoUtils.verifyPassword(input, sysPwdEncrypted, encKey);
+       isAdmin = await CryptoUtils.verifyPassword(input, sysHash, sysSalt.cast<int>());
     }
 
-    if (allowGuest && guestPwdEncrypted.isNotEmpty) {
-       isGuest = CryptoUtils.verifyPassword(input, guestPwdEncrypted, encKey);
+    if (allowGuest && guestHash.isNotEmpty && guestSalt != null) {
+       isGuest = await CryptoUtils.verifyPassword(input, guestHash, guestSalt.cast<int>());
     }
 
     if (isAdmin || isGuest) {
+      await RateLimiter.resetAttempts();
       AppState.instance.authDialogOpen = false;
       Navigator.pop(context);
       callback();
     } else {
+      await RateLimiter.recordFailedAttempt();
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
         const SnackBar(content: Text('验证失败：密码错误或权限不足'), backgroundColor: Colors.red),
       );

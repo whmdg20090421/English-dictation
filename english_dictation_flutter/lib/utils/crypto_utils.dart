@@ -1,33 +1,45 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
-import 'package:encrypt/encrypt.dart' as encrypt;
+import 'package:cryptography/cryptography.dart';
 
 class CryptoUtils {
-  // Use a fixed IV to ensure deterministic encryption for password comparison
-  // (As explicitly requested by the user: "encrypt again and compare")
-  static final _fixedIV = encrypt.IV.fromLength(12); // 12-byte zero IV for deterministic AES-GCM
+  static final _argon2id = Argon2id(
+    memory: 65536, // 64 MB
+    iterations: 3,
+    parallelism: 2,
+  );
 
-  static encrypt.Key _deriveKey(String password) {
-    const envKey = String.fromEnvironment('ENCRYPTION_KEY');
-    final String keyToUse = envKey.isNotEmpty ? envKey : password;
-    final bytes = utf8.encode(keyToUse);
-    final digest = sha256.convert(bytes);
-    return encrypt.Key(Uint8List.fromList(digest.bytes));
+  /// Generates a cryptographically secure random 16-byte salt
+  static List<int> generateSalt() {
+    final random = DartRandom();
+    return random.nextBytes(16);
   }
 
-  static String encryptPassword(String plainPassword, String encryptionKey) {
-    if (plainPassword.isEmpty) return '';
-    final key = _deriveKey(encryptionKey);
-    final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.gcm));
-    
-    final encrypted = encrypter.encrypt(plainPassword, iv: _fixedIV);
-    return encrypted.base64;
+  /// Hashes a password using Argon2id and a given salt
+  /// Returns a Base64 encoded string of the hash
+  static Future<String> hashPassword(String password, List<int> salt) async {
+    if (password.isEmpty) return '';
+    final secretKey = await _argon2id.deriveKeyFromPassword(
+      password: password,
+      nonce: salt,
+    );
+    final bytes = await secretKey.extractBytes();
+    return base64Encode(bytes);
   }
 
-  static bool verifyPassword(String inputPassword, String storedEncryptedPassword, String encryptionKey) {
-    if (storedEncryptedPassword.isEmpty && inputPassword.isEmpty) return true;
-    final encryptedInput = encryptPassword(inputPassword, encryptionKey);
-    return encryptedInput == storedEncryptedPassword;
+  /// Verifies a password against an existing hash and salt
+  static Future<bool> verifyPassword(String inputPassword, String storedHash, List<int> salt) async {
+    if (storedHash.isEmpty && inputPassword.isEmpty) return true;
+    final hash = await hashPassword(inputPassword, salt);
+    return hash == storedHash;
+  }
+
+  /// Derives the Master Encryption Key (MEK) from the user's MEK Password and Salt
+  /// Returns a 32-byte SecretKey (256-bit)
+  static Future<SecretKey> deriveMEK(String mekPassword, List<int> salt) async {
+    return await _argon2id.deriveKeyFromPassword(
+      password: mekPassword,
+      nonce: salt,
+    );
   }
 }

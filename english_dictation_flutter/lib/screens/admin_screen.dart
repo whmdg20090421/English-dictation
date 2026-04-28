@@ -849,41 +849,47 @@ class _SettingsTabState extends State<_SettingsTab> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  onPressed: () {
-                    final encKey = CloudSyncService().encryptionPassword ?? '';
-                    final currentEncryptedPass = DataManager.instance.globalSettings['password'] ?? '';
+                  onPressed: () async {
+                    final currentHash = DataManager.instance.globalSettings['adminHash']?.toString() ?? '';
+                    final currentSalt = DataManager.instance.globalSettings['adminSalt'] as List<dynamic>?;
                     final oldInput = _oldPassCtrl.text;
                     final newInput = _newPassCtrl.text;
                     final confirmInput = _confirmPassCtrl.text;
 
                     // Verify old password
                     bool isOldCorrect = false;
-                    if (currentEncryptedPass.isEmpty) {
+                    if (currentHash.isEmpty || currentSalt == null) {
                       isOldCorrect = oldInput == '123456';
                     } else {
-                      isOldCorrect = CryptoUtils.verifyPassword(oldInput, currentEncryptedPass, encKey);
+                      isOldCorrect = await CryptoUtils.verifyPassword(oldInput, currentHash, currentSalt.cast<int>());
                     }
 
                     if (!isOldCorrect) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('原密码错误')));
                       return;
                     }
 
                     if (newInput.isEmpty) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('新密码不能为空')));
                       return;
                     }
 
                     if (newInput != confirmInput) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('两次输入的新密码不一致')));
                       return;
                     }
 
                     // Save new password
-                    final encryptedNewPass = CryptoUtils.encryptPassword(newInput, encKey);
-                    DataManager.instance.globalSettings['password'] = encryptedNewPass;
+                    final newSalt = CryptoUtils.generateSalt();
+                    final newHash = await CryptoUtils.hashPassword(newInput, newSalt);
+                    DataManager.instance.globalSettings['adminHash'] = newHash;
+                    DataManager.instance.globalSettings['adminSalt'] = newSalt;
                     DataManager.instance.saveData();
 
+                    if (!context.mounted) return;
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('密码修改成功，请妥善保管')));
                   },

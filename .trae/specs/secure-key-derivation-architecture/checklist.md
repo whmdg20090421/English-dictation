@@ -1,0 +1,7 @@
+- [x] The `cryptography` package is added to dependencies and compiled successfully.
+- [x] Admin Password authentication logic is refactored to use Argon2id hashing with a random salt, not fixed-IV AES encryption.
+- [x] MEK Password (Encryption Key Password) logic is refactored to use Argon2id to derive a 256-bit SecretKey, not a simple SHA-256 hash.
+- [x] Cloud `Config.json` stores `Admin_Hash` and `Admin_Salt` (plus `Guest_Hash` and `Guest_Salt` if applicable), not directly encrypted passwords.
+- [x] The MEK Password salt (`MEK_Salt`) is properly stored/synced to allow multi-device derivation.
+- [x] Brute-force protection prevents more than 5 consecutive failed Admin Password attempts, locking out the user for 15 minutes.
+- [x] TEE (flutter_secure_storage) securely stores the MEK Password or derived MEK for transparent background syncing, avoiding repeated manual input.

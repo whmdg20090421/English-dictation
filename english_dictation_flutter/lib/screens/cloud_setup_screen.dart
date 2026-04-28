@@ -58,10 +58,12 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
             // Load public and personal data
             await DataManager.instance.loadData();
             
-            // IMPORTANT: Overwrite local globalSettings with the correct passwords from configData
-            // so they are not wiped out by loadData() syncing public data without passwords.
-            DataManager.instance.globalSettings['password'] = configData['adminPassword'];
-            DataManager.instance.globalSettings['guestPassword'] = configData['guestPassword'];
+            // IMPORTANT: Overwrite local globalSettings with the correct hashes and salts from configData
+            DataManager.instance.globalSettings['adminHash'] = configData['adminHash'];
+            DataManager.instance.globalSettings['adminSalt'] = configData['adminSalt'];
+            DataManager.instance.globalSettings['guestHash'] = configData['guestHash'];
+            DataManager.instance.globalSettings['guestSalt'] = configData['guestSalt'];
+            DataManager.instance.globalSettings['mekSalt'] = configData['mekSalt'];
             await DataManager.instance.saveData();
             
             if (!mounted) return;
@@ -84,18 +86,31 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
           return;
         }
 
-        final encryptedAdminPwd = CryptoUtils.encryptPassword(_adminPwdController.text, encKey);
-        final encryptedGuestPwd = CryptoUtils.encryptPassword(_guestPwdController.text, encKey);
+        final adminSaltBytes = CryptoUtils.generateSalt();
+        final guestSaltBytes = CryptoUtils.generateSalt();
+        final mekSaltBytes = CryptoUtils.generateSalt();
+
+        final adminHash = await CryptoUtils.hashPassword(_adminPwdController.text, adminSaltBytes);
+        final guestHash = await CryptoUtils.hashPassword(_guestPwdController.text, guestSaltBytes);
+
+        // MEK derives from encKey, but we just store MEK_Salt so other devices can derive it.
+        // We do not store any hash of encKey. If it decrypts the file, it's correct.
 
         final configData = {
-          'adminPassword': encryptedAdminPwd,
-          'guestPassword': encryptedGuestPwd,
+          'adminHash': adminHash,
+          'adminSalt': adminSaltBytes,
+          'guestHash': guestHash,
+          'guestSalt': guestSaltBytes,
+          'mekSalt': mekSaltBytes,
           'createdAt': DateTime.now().toIso8601String(),
         };
 
+        // Initialize cloud with MEK_Salt explicitly passed so it can be used for the first encryption
+        CloudSyncService().setEncryptionPasswordAndSalt(encKey, mekSaltBytes);
+
         final success = await CloudSyncService().uploadConfig(
           configData,
-          encKey,
+          encKey, // We still use encKey and mekSaltBytes to encrypt the config itself
         );
 
         if (success) {
@@ -107,14 +122,15 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
           final prefs = await SharedPreferences.getInstance();
           await prefs.remove('encryption_password');
 
-          CloudSyncService().setEncryptionPassword(encKey);
-
           // Initial upload of existing data to cloud
           await DataManager.instance.loadData(); // Load local data first, which will auto-initialize empty cloud
           
-          // IMPORTANT: Also save admin/guest passwords to globalSettings so app logic uses them
-          DataManager.instance.globalSettings['password'] = encryptedAdminPwd;
-          DataManager.instance.globalSettings['guestPassword'] = encryptedGuestPwd;
+          // IMPORTANT: Also save admin/guest hashes and salts to globalSettings so app logic uses them
+          DataManager.instance.globalSettings['adminHash'] = adminHash;
+          DataManager.instance.globalSettings['adminSalt'] = adminSaltBytes;
+          DataManager.instance.globalSettings['guestHash'] = guestHash;
+          DataManager.instance.globalSettings['guestSalt'] = guestSaltBytes;
+          DataManager.instance.globalSettings['mekSalt'] = mekSaltBytes;
           await DataManager.instance.saveData();
 
           if (!mounted) return;

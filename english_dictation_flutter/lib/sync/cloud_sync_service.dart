@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:encrypt/encrypt.dart' as encrypt;
-import 'package:crypto/crypto.dart';
+import 'package:cryptography/cryptography.dart' as crypto;
 
 import 'webdav_new/webdav_client.dart';
 import 'webdav_new/webdav_service.dart';
 import 'webdav_new/webdav_file.dart';
+import '../utils/crypto_utils.dart';
+import '../db/data_manager.dart';
 
 class CloudSyncService {
   static final CloudSyncService _instance = CloudSyncService._internal();
@@ -25,6 +27,7 @@ class CloudSyncService {
   final String _configPath = '/英语听写/公共数据/配置.json';
   final String _publicDataPath = '/英语听写/公共数据/数据.json';
   String? _encryptionPassword;
+  List<int>? _mekSalt;
 
   // Connection status stream
   final _connectionStatusController = StreamController<bool>.broadcast();
@@ -58,7 +61,6 @@ class CloudSyncService {
 
   Future<void> _checkConnection() async {
     try {
-      // 123pan doesn't support OPTIONS well, so use PROPFIND on root to check connection
       await _service.readDir('/');
       _isConnected = true;
       _connectionStatusController.add(_isConnected);
@@ -77,29 +79,41 @@ class CloudSyncService {
     _encryptionPassword = password;
   }
 
+  void setEncryptionPasswordAndSalt(String password, List<int> salt) {
+    _encryptionPassword = password;
+    _mekSalt = salt;
+  }
+
   String? get encryptionPassword => _encryptionPassword;
 
-  // Derive a 32-byte key from the password using SHA-256
-  encrypt.Key _deriveKey(String password) {
+  // Use a fixed salt for encrypting the config file itself, since we don't have the mekSalt yet
+  static final List<int> _configFixedSalt = utf8.encode('config_fixed_salt_for_mek_derivation_v1');
+
+  Future<crypto.SecretKey> _deriveKey(String password, {List<int>? salt}) async {
     const envKey = String.fromEnvironment('ENCRYPTION_KEY');
     final String keyToUse = envKey.isNotEmpty ? envKey : password;
-    final bytes = utf8.encode(keyToUse);
-    final digest = sha256.convert(bytes);
-    return encrypt.Key(Uint8List.fromList(digest.bytes));
+    
+    List<int> actualSalt = salt ?? _mekSalt ?? [];
+    if (actualSalt.isEmpty) {
+      // Fallback to config fixed salt if no salt provided and mekSalt is null
+      actualSalt = _configFixedSalt;
+    }
+    
+    return await CryptoUtils.deriveMEK(keyToUse, actualSalt);
   }
 
   // Encrypt JSON map to Base64 string with AES-GCM
-  String encryptData(Map<String, dynamic> data, String password) {
-    final key = _deriveKey(password);
-    // AES-GCM typically uses a 12-byte IV
+  Future<String> encryptData(Map<String, dynamic> data, String password, {List<int>? salt}) async {
+    final secretKey = await _deriveKey(password, salt: salt);
+    final keyBytes = await secretKey.extractBytes();
+    final key = encrypt.Key(Uint8List.fromList(keyBytes));
+    
     final iv = encrypt.IV.fromSecureRandom(12);
     final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.gcm));
 
     final jsonString = jsonEncode(data);
     final encrypted = encrypter.encrypt(jsonString, iv: iv);
 
-    // Combine IV and Encrypted data
-    // We can prepend the IV to the encrypted bytes and base64 encode the whole thing
     final combined = Uint8List(iv.bytes.length + encrypted.bytes.length);
     combined.setAll(0, iv.bytes);
     combined.setAll(iv.bytes.length, encrypted.bytes);
@@ -108,12 +122,14 @@ class CloudSyncService {
   }
 
   // Decrypt Base64 string to JSON map
-  Map<String, dynamic>? decryptData(String base64Data, String password) {
+  Future<Map<String, dynamic>?> decryptData(String base64Data, String password, {List<int>? salt}) async {
     try {
-      final key = _deriveKey(password);
+      final secretKey = await _deriveKey(password, salt: salt);
+      final keyBytes = await secretKey.extractBytes();
+      final key = encrypt.Key(Uint8List.fromList(keyBytes));
+      
       final combined = base64Decode(base64Data);
 
-      // Extract IV (first 12 bytes) and encrypted data
       final ivBytes = combined.sublist(0, 12);
       final encryptedBytes = combined.sublist(12);
 
@@ -142,7 +158,6 @@ class CloudSyncService {
       }
       return false;
     } catch (e) {
-      // It's normal for readDir to throw if the folder doesn't exist yet
       print('Check config exists error (expected if new): $e');
       return false;
     }
@@ -154,7 +169,12 @@ class CloudSyncService {
     try {
       final bytes = await _service.readBytes(_configPath);
       final base64String = utf8.decode(bytes);
-      return decryptData(base64String, password);
+      // Config always uses the fixed salt so it can be decrypted before knowing MEK_Salt
+      final config = await decryptData(base64String, password, salt: _configFixedSalt);
+      if (config != null && config.containsKey('mekSalt')) {
+        _mekSalt = (config['mekSalt'] as List).cast<int>();
+      }
+      return config;
     } catch (e) {
       _logError('Download config error: $e');
       return null;
@@ -167,7 +187,8 @@ class CloudSyncService {
     try {
       await _ensureDir(_publicDataFolder);
 
-      final encryptedBase64 = encryptData(data, password);
+      // Config always uses the fixed salt so it can be decrypted before knowing MEK_Salt
+      final encryptedBase64 = await encryptData(data, password, salt: _configFixedSalt);
       final bytes = Uint8List.fromList(utf8.encode(encryptedBase64));
       
       await _service.writeBytes(_configPath, bytes.toList());
@@ -178,8 +199,11 @@ class CloudSyncService {
     }
   }
 
-  String encryptUsername(String username, String password) {
-    final key = _deriveKey(password);
+  Future<String> encryptUsername(String username, String password) async {
+    final secretKey = await _deriveKey(password);
+    final keyBytes = await secretKey.extractBytes();
+    final key = encrypt.Key(Uint8List.fromList(keyBytes));
+    
     final iv = encrypt.IV.fromSecureRandom(12);
     final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.gcm));
     final encrypted = encrypter.encrypt(username, iv: iv);
@@ -188,21 +212,20 @@ class CloudSyncService {
     combined.setAll(0, iv.bytes);
     combined.setAll(iv.bytes.length, encrypted.bytes);
     
-    // Replace slashes so it's a valid path part
     return base64UrlEncode(combined).replaceAll('=', '');
   }
 
   // Get personal data path
-  String _getPersonalDataPath(String username) {
+  Future<String> _getPersonalDataPath(String username) async {
     if (_encryptionPassword == null) return '$_basePath/$username/数据/数据.json';
-    final encName = encryptUsername(username, _encryptionPassword!);
+    final encName = await encryptUsername(username, _encryptionPassword!);
     return '$_basePath/$encName/数据/数据.json';
   }
 
   // Get personal data folder
-  String _getPersonalDataFolder(String username) {
+  Future<String> _getPersonalDataFolder(String username) async {
     if (_encryptionPassword == null) return '$_basePath/$username/数据';
-    final encName = encryptUsername(username, _encryptionPassword!);
+    final encName = await encryptUsername(username, _encryptionPassword!);
     return '$_basePath/$encName/数据';
   }
 
@@ -227,7 +250,8 @@ class CloudSyncService {
 
   // Download and decrypt personal data
   Future<Map<String, dynamic>?> downloadPersonalData(String username) async {
-    return _downloadFromPath(_getPersonalDataPath(username));
+    final path = await _getPersonalDataPath(username);
+    return _downloadFromPath(path);
   }
 
   Future<Map<String, dynamic>?> _downloadFromPath(String path) async {
@@ -236,6 +260,13 @@ class CloudSyncService {
     try {
       final bytes = await _service.readBytes(path);
       final base64String = utf8.decode(bytes);
+      // Retrieve mekSalt from DataManager if not set
+      if (_mekSalt == null) {
+        final savedSalt = DataManager.instance.globalSettings['mekSalt'];
+        if (savedSalt != null) {
+          _mekSalt = (savedSalt as List).cast<int>();
+        }
+      }
       return decryptData(base64String, _encryptionPassword!);
     } catch (e) {
       _logError('Download data error from $path: $e');
@@ -250,7 +281,9 @@ class CloudSyncService {
 
   // Encrypt and upload personal data
   Future<bool> uploadPersonalData(String username, Map<String, dynamic> data) async {
-    return _uploadToPath(_getPersonalDataFolder(username), _getPersonalDataPath(username), data);
+    final folder = await _getPersonalDataFolder(username);
+    final path = await _getPersonalDataPath(username);
+    return _uploadToPath(folder, path, data);
   }
 
   Future<bool> _uploadToPath(String folderPath, String filePath, Map<String, dynamic> data) async {
@@ -259,7 +292,15 @@ class CloudSyncService {
     try {
       await _ensureDir(folderPath);
 
-      final encryptedBase64 = encryptData(data, _encryptionPassword!);
+      // Retrieve mekSalt from DataManager if not set
+      if (_mekSalt == null) {
+        final savedSalt = DataManager.instance.globalSettings['mekSalt'];
+        if (savedSalt != null) {
+          _mekSalt = (savedSalt as List).cast<int>();
+        }
+      }
+
+      final encryptedBase64 = await encryptData(data, _encryptionPassword!);
       final bytes = Uint8List.fromList(utf8.encode(encryptedBase64));
 
       await _service.writeBytes(filePath, bytes.toList());
