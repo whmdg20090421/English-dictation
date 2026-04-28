@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../sync/cloud_sync_service.dart';
 import '../db/data_manager.dart';
 import '../app_state.dart';
@@ -34,8 +34,8 @@ class _CloudStatusIndicatorState extends State<CloudStatusIndicator> {
   }
 
   Future<void> _checkConnection() async {
-    final prefs = await SharedPreferences.getInstance();
-    final pwd = prefs.getString('encryption_password');
+    final storage = const FlutterSecureStorage();
+    final pwd = await storage.read(key: 'encryption_password');
     
     if (pwd == null || pwd.isEmpty) {
       if (mounted) {

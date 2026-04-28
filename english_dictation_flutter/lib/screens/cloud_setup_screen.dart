@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../sync/cloud_sync_service.dart';
 import '../db/data_manager.dart';
 import 'home_screen.dart';
@@ -45,8 +46,13 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
           final configData = await CloudSyncService().downloadConfig(encKey);
           if (configData != null) {
             // Password is correct, download data
+            final storage = const FlutterSecureStorage();
+            await storage.write(key: 'encryption_password', value: encKey);
+            
+            // Also clean up old insecure storage if exists
             final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('encryption_password', encKey);
+            await prefs.remove('encryption_password');
+            
             CloudSyncService().setEncryptionPassword(encKey);
             
             // Load public and personal data
@@ -93,9 +99,14 @@ class _CloudSetupScreenState extends State<CloudSetupScreen> {
         );
 
         if (success) {
-          // Save encryption password locally
+          // Save encryption password securely
+          final storage = const FlutterSecureStorage();
+          await storage.write(key: 'encryption_password', value: encKey);
+          
+          // Clean up old insecure storage
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('encryption_password', encKey);
+          await prefs.remove('encryption_password');
+
           CloudSyncService().setEncryptionPassword(encKey);
 
           // Initial upload of existing data to cloud

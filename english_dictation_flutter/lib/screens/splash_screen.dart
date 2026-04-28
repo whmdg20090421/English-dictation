@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../sync/cloud_sync_service.dart';
 import 'cloud_setup_screen.dart';
 import 'home_screen.dart';
@@ -22,8 +23,19 @@ class _SplashScreenState extends State<SplashScreen> {
     // Optional: wait a moment for better UX
     await Future.delayed(const Duration(milliseconds: 500));
 
+    // Migrate old plaintext password to secure storage if it exists
     final prefs = await SharedPreferences.getInstance();
-    final pwd = prefs.getString('encryption_password');
+    final storage = const FlutterSecureStorage();
+    
+    String? pwd = await storage.read(key: 'encryption_password');
+    if (pwd == null) {
+      pwd = prefs.getString('encryption_password');
+      if (pwd != null && pwd.isNotEmpty) {
+        // Found in insecure storage, migrate it
+        await storage.write(key: 'encryption_password', value: pwd);
+        await prefs.remove('encryption_password');
+      }
+    }
     if (pwd != null && pwd.isNotEmpty) {
       CloudSyncService().setEncryptionPassword(pwd);
     } else {
