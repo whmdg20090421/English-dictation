@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:math';
 import 'package:cryptography/cryptography.dart';
 
 class CryptoUtils {
@@ -7,12 +7,13 @@ class CryptoUtils {
     memory: 65536, // 64 MB
     iterations: 3,
     parallelism: 2,
+    hashLength: 32,
   );
 
   /// Generates a cryptographically secure random 16-byte salt
   static List<int> generateSalt() {
-    final random = DartRandom();
-    return random.nextBytes(16);
+    final random = Random.secure();
+    return List<int>.generate(16, (i) => random.nextInt(256));
   }
 
   /// Hashes a password using Argon2id and a given salt

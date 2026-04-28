@@ -5,7 +5,6 @@ import '../sync/cloud_sync_service.dart';
 import '../db/data_manager.dart';
 import 'home_screen.dart';
 import '../utils/crypto_utils.dart';
-
 import '../components/cloud_status_indicator.dart';
 
 class CloudSetupScreen extends StatefulWidget {
