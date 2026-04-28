@@ -335,7 +335,7 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
     
     // Try to decrypt if it looks like a base64 encrypted payload
     try {
-      final decrypted = _syncService.decryptData(contentBytes, _syncService.encryptionPassword!);
+      final decrypted = await _syncService.decryptData(contentBytes, _syncService.encryptionPassword!);
       if (decrypted != null) {
         content = const JsonEncoder.withIndent('  ').convert(decrypted);
         isEncrypted = true;
@@ -380,7 +380,7 @@ class _CloudFileManagerScreenState extends State<CloudFileManagerScreen> {
       if (isEncrypted) {
         try {
           final jsonData = jsonDecode(newContent);
-          contentToSave = _syncService.encryptData(jsonData, _syncService.encryptionPassword!);
+          contentToSave = await _syncService.encryptData(jsonData, _syncService.encryptionPassword!);
         } catch (e) {
           setState(() => _isLoading = false);
           ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
