@@ -10,14 +10,8 @@ class DnsFallbackInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    // DNS bypass for troubleshooting
-    if (options.uri.host == 'webdav.123pan.cn') {
-      options.headers['Host'] = 'webdav.123pan.cn';
-      // Use known IP for webdav.123pan.cn
-      final newUrl = options.uri.replace(host: '59.47.235.55').toString();
-      options.path = newUrl;
-      onLog?.call('DnsFallbackInterceptor: 绕过DNS，使用IP直连 -> $newUrl');
-    }
+    // 移除了IP直连逻辑，保留拦截器结构以备将来扩展或记录请求信息
+    // 依靠系统默认DNS解析
     super.onRequest(options, handler);
   }
 }
