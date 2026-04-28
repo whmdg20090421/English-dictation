@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../sync/cloud_sync_service.dart';
 import '../db/data_manager.dart';
@@ -156,11 +157,26 @@ class _CloudStatusIndicatorState extends State<CloudStatusIndicator> {
                     shrinkWrap: true,
                     itemCount: logs.length,
                     itemBuilder: (context, index) {
+                      final logStr = logs[index];
+                      // Assume log format is [time] message
+                      final splitIndex = logStr.indexOf('] ');
+                      final timeStr = splitIndex != -1 ? logStr.substring(0, splitIndex + 1) : '';
+                      
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
-                        child: Text(
-                          logs[index],
-                          style: const TextStyle(fontSize: 12, color: Colors.redAccent),
+                        child: InkWell(
+                          onTap: () => _showLogDetail(context, logStr),
+                          child: Container(
+                            padding: const EdgeInsets.all(8.0),
+                            decoration: BoxDecoration(
+                              color: Colors.red[50],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              timeStr.isNotEmpty ? timeStr : logStr,
+                              style: const TextStyle(fontSize: 14, color: Colors.redAccent, fontWeight: FontWeight.bold),
+                            ),
+                          ),
                         ),
                       );
                     },
@@ -170,6 +186,38 @@ class _CloudStatusIndicatorState extends State<CloudStatusIndicator> {
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('关闭'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showLogDetail(BuildContext context, String log) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('报错详情'),
+          content: SingleChildScrollView(
+            child: SelectableText(
+              log,
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('关闭'),
+            ),
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: log));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('已复制到剪贴板'), duration: Duration(seconds: 2)),
+                );
+              },
+              child: const Text('复制'),
             ),
           ],
         );

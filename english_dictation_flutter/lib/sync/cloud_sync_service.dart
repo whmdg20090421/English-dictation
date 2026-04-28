@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:cryptography/cryptography.dart' as crypto;
+import 'package:path_provider/path_provider.dart';
 
 import 'webdav_new/webdav_client.dart';
 import 'webdav_new/webdav_service.dart';
@@ -38,12 +40,23 @@ class CloudSyncService {
   final List<String> _errorLogs = [];
   List<String> get errorLogs => _errorLogs;
 
-  void _logError(String msg) {
+  void _logError(String msg) async {
     final time = DateTime.now().toLocal().toString().split('.')[0];
-    _errorLogs.insert(0, '[$time] $msg');
+    final logLine = '[$time] $msg';
+    _errorLogs.insert(0, logLine);
     if (_errorLogs.length > 50) _errorLogs.removeLast();
     _isConnected = false;
     _connectionStatusController.add(false);
+
+    try {
+      final directory = await getExternalStorageDirectory();
+      if (directory != null) {
+        final logFile = File('${directory.path}/error_log.txt');
+        await logFile.writeAsString('$logLine\n', mode: FileMode.append);
+      }
+    } catch (e) {
+      print('Failed to write log to external directory: $e');
+    }
   }
 
   void init() {
