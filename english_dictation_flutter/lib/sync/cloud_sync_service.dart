@@ -40,6 +40,9 @@ class CloudSyncService {
   final List<String> _errorLogs = [];
   List<String> get errorLogs => _errorLogs;
 
+  bool _isNetworkDiagnosticsRunning = false;
+  DateTime? _lastNetworkDiagnosticsAt;
+
   void _logError(String msg) async {
     final time = DateTime.now().toLocal().toString().split('.')[0];
     final logLine = '[$time] $msg';
@@ -57,6 +60,95 @@ class CloudSyncService {
     } catch (e) {
       print('Failed to write log to external directory: $e');
     }
+
+    _maybeRunNetworkDiagnostics(logLine);
+  }
+
+  bool _isNetworkRelatedLog(String logLine) {
+    final lower = logLine.toLowerCase();
+    return lower.contains('failed host lookup') ||
+        lower.contains('socketexception') ||
+        lower.contains('connection error') ||
+        lower.contains('timed out') ||
+        lower.contains('network') ||
+        lower.contains('dns');
+  }
+
+  void _maybeRunNetworkDiagnostics(String triggerLogLine) {
+    if (!_isNetworkRelatedLog(triggerLogLine)) return;
+    if (_isNetworkDiagnosticsRunning) return;
+    final now = DateTime.now();
+    final last = _lastNetworkDiagnosticsAt;
+    if (last != null && now.difference(last).inSeconds < 30) return;
+    _lastNetworkDiagnosticsAt = now;
+
+    () async {
+      _isNetworkDiagnosticsRunning = true;
+      try {
+        await _runNetworkDiagnostics(triggerLogLine, now);
+      } catch (_) {
+      } finally {
+        _isNetworkDiagnosticsRunning = false;
+      }
+    }();
+  }
+
+  Future<void> _runNetworkDiagnostics(String triggerLogLine, DateTime now) async {
+    final buffer = StringBuffer();
+    buffer.writeln('Time: ${now.toIso8601String()}');
+    buffer.writeln('Trigger: $triggerLogLine');
+    buffer.writeln('Platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}');
+
+    final host = Uri.parse(_webdavUrl).host;
+    buffer.writeln('Host: $host');
+
+    try {
+      final addresses = await InternetAddress.lookup(host);
+      buffer.writeln('Lookup: ${addresses.map((a) => '${a.address}(${a.type.name})').join(', ')}');
+    } catch (e) {
+      buffer.writeln('LookupError: $e');
+    }
+
+    try {
+      final interfaces = await NetworkInterface.list(includeLoopback: true, includeLinkLocal: true);
+      for (final iface in interfaces) {
+        final addrs = iface.addresses.map((a) => '${a.address}(${a.type.name})').join(', ');
+        buffer.writeln('Interface: ${iface.name} $addrs');
+      }
+    } catch (e) {
+      buffer.writeln('InterfaceListError: $e');
+    }
+
+    void writeLine(String line) => buffer.writeln(line);
+
+    final diagClient = WebDavClient(
+      baseUrl: _webdavUrl,
+      username: _user,
+      password: _pwd,
+      onLog: writeLine,
+    );
+    diagClient.dio.interceptors.insert(0, WebDavTraceInterceptor(onLog: writeLine));
+    final diagService = WebDavService(diagClient);
+
+    try {
+      await diagService.readDir('/');
+      buffer.writeln('Result: success');
+    } catch (e, st) {
+      buffer.writeln('ResultError: $e');
+      buffer.writeln('StackTrace: $st');
+    }
+
+    final directory = await getExternalStorageDirectory();
+    if (directory == null) return;
+
+    final safeTime = now
+        .toLocal()
+        .toString()
+        .split('.')[0]
+        .replaceAll(':', '-')
+        .replaceAll(' ', '_');
+    final file = File('${directory.path}/网络报错_$safeTime.txt');
+    await file.writeAsString(buffer.toString());
   }
 
   void init() {

@@ -10,9 +10,86 @@ class DnsFallbackInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    // 移除了IP直连逻辑，保留拦截器结构以备将来扩展或记录请求信息
-    // 依靠系统默认DNS解析
     super.onRequest(options, handler);
+  }
+}
+
+class WebDavTraceInterceptor extends Interceptor {
+  final void Function(String) onLog;
+  final int maxBodyChars;
+
+  WebDavTraceInterceptor({
+    required this.onLog,
+    this.maxBodyChars = 2000,
+  });
+
+  Map<String, dynamic> _redactHeaders(Map<String, dynamic> headers) {
+    final redacted = <String, dynamic>{};
+    for (final entry in headers.entries) {
+      final key = entry.key;
+      if (key.toLowerCase() == 'authorization') {
+        redacted[key] = '[HIDDEN]';
+      } else {
+        redacted[key] = entry.value;
+      }
+    }
+    return redacted;
+  }
+
+  String _truncate(Object? data) {
+    if (data == null) return 'null';
+    if (data is List<int>) return 'bytes(length=${data.length})';
+    final str = data.toString();
+    if (str.length <= maxBodyChars) return str;
+    return '${str.substring(0, maxBodyChars)}...(truncated, total=${str.length})';
+  }
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final sw = Stopwatch()..start();
+    options.extra['__webdav_trace_sw'] = sw;
+    onLog('=== [WebDAV Trace] ===');
+    onLog('Time: ${DateTime.now().toIso8601String()}');
+    onLog('Request: ${options.method} ${options.uri}');
+    onLog('Headers: ${_redactHeaders(options.headers)}');
+    onLog('Data: ${_truncate(options.data)}');
+    super.onRequest(options, handler);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final sw = response.requestOptions.extra['__webdav_trace_sw'];
+    if (sw is Stopwatch) sw.stop();
+    onLog('Response: ${response.statusCode} ${response.statusMessage}');
+    if (sw is Stopwatch) {
+      onLog('DurationMs: ${sw.elapsedMilliseconds}');
+    }
+    onLog('ResponseHeaders: ${response.headers.map}');
+    onLog('ResponseData: ${_truncate(response.data)}');
+    onLog('======================');
+    super.onResponse(response, handler);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    final sw = err.requestOptions.extra['__webdav_trace_sw'];
+    if (sw is Stopwatch) sw.stop();
+    onLog('Error: [${err.type}] ${err.message}');
+    if (sw is Stopwatch) {
+      onLog('DurationMs: ${sw.elapsedMilliseconds}');
+    }
+    if (err.error != null) {
+      onLog('UnderlyingError: ${err.error}');
+      if (err.error is SocketException) {
+        final se = err.error as SocketException;
+        onLog('SocketException: ${se.message}, osError: ${se.osError}');
+      } else if (err.error is TlsException) {
+        final te = err.error as TlsException;
+        onLog('TlsException: ${te.message}, osError: ${te.osError}');
+      }
+    }
+    onLog('======================');
+    super.onError(err, handler);
   }
 }
 
