@@ -1,11 +1,39 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
+
+class DnsFallbackInterceptor extends Interceptor {
+  final void Function(String)? onLog;
+
+  DnsFallbackInterceptor({this.onLog});
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    // DNS bypass for troubleshooting
+    if (options.uri.host == 'webdav.123pan.cn') {
+      options.headers['Host'] = 'webdav.123pan.cn';
+      // Use known IP for webdav.123pan.cn
+      final newUrl = options.uri.replace(host: '59.47.235.55').toString();
+      options.path = newUrl;
+      onLog?.call('DnsFallbackInterceptor: 绕过DNS，使用IP直连 -> $newUrl');
+    }
+    super.onRequest(options, handler);
+  }
+}
 
 class WebDavErrorLoggerInterceptor extends Interceptor {
+  final void Function(String)? onLog;
+
+  WebDavErrorLoggerInterceptor({this.onLog});
+
   void _writeLog(String message) {
     try {
-      print(message); // Simplification: Just print to console instead of hardcoded file
+      if (onLog != null) {
+        onLog!(message);
+      } else {
+        print(message);
+      }
     } catch (e) {
       print('Failed to write WebDAV error log: $e');
     }
@@ -79,6 +107,7 @@ class WebDavClient {
     required String baseUrl,
     required String username,
     required String password,
+    void Function(String)? onLog,
   }) {
     final credentials = base64Encode(utf8.encode('$username:$password'));
     dio = Dio(BaseOptions(
@@ -90,8 +119,23 @@ class WebDavClient {
       },
     ));
 
+    // Custom HttpClientAdapter for DNS bypassing or SSL bypassing
+    dio.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: () {
+        final client = HttpClient();
+        // Allow bypassing certificate errors for IP fallback
+        client.badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+        // By default findProxy is direct, but ensuring it avoids broken proxy configs
+        client.findProxy = (uri) => 'DIRECT';
+        return client;
+      },
+    );
+
+    // DNS/IP fallback interceptor
+    dio.interceptors.add(DnsFallbackInterceptor(onLog: onLog));
+
     // Error Logger Interceptor
-    dio.interceptors.add(WebDavErrorLoggerInterceptor());
+    dio.interceptors.add(WebDavErrorLoggerInterceptor(onLog: onLog));
   }
 
   /// 统一的请求入口，支持 PROPFIND, MKCOL 等自定义 Method

@@ -65,6 +65,7 @@ class CloudSyncService {
         baseUrl: _webdavUrl,
         username: _user,
         password: _pwd,
+        onLog: (log) => _logError(log),
       );
       _service = WebDavService(_client);
       _isInitialized = true;
